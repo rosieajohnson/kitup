@@ -1,0 +1,161 @@
+@import "tailwindcss";
+
+/* ============================================================
+   Kit Up — design tokens
+   Direction: "Fieldhouse". An athletic, optimistic, trustworthy
+   palette built from a chalk-court off-white, deep pine ink, a
+   single bold coral for generous action, and turf green reserved
+   for funding progress. Boldness is spent in one place: coral.
+   ============================================================ */
+@theme {
+  /* Surfaces */
+  --color-canvas: #f5f7f2; /* chalk-court off-white (not the cream default) */
+  --color-surface: #ffffff;
+  --color-surface-sunk: #eef2ea;
+
+  /* Ink */
+  --color-ink: #15241c; /* deep pine, near-black green */
+  --color-ink-soft: #4c5a52;
+  --color-ink-faint: #7c887f;
+
+  /* Structure */
+  --color-line: #dde4d8; /* soft court line */
+  --color-line-strong: #c5cfbe;
+
+  /* Bold action — the one place we spend boldness */
+  --color-coral: #ff5a3c;
+  --color-coral-dark: #e8482c;
+  --color-coral-tint: #ffe7e1;
+
+  /* Functional / progress — turf reads as "growing, funded" */
+  --color-turf: #0e7c66;
+  --color-turf-dark: #0a5f4e;
+  --color-turf-tint: #d9efe8;
+
+  /* Celebration only — fully-funded badge, used sparingly */
+  --color-sun: #f4b73e;
+
+  /* Type */
+  --font-display: var(--font-bricolage), "Bricolage Grotesque", ui-sans-serif,
+    system-ui, sans-serif;
+  --font-sans: var(--font-jakarta), "Plus Jakarta Sans", ui-sans-serif,
+    system-ui, sans-serif;
+
+  /* Radius */
+  --radius-sm: 0.5rem;
+  --radius-md: 0.85rem;
+  --radius-lg: 1.25rem;
+  --radius-xl: 1.75rem;
+
+  /* Shadow */
+  --shadow-card: 0 1px 2px rgb(21 36 28 / 0.04), 0 8px 24px -12px rgb(21 36 28 / 0.16);
+  --shadow-lift: 0 2px 4px rgb(21 36 28 / 0.06), 0 18px 40px -16px rgb(21 36 28 / 0.24);
+}
+
+/* ============================================================
+   Base
+   ============================================================ */
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: var(--color-canvas);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  ::selection {
+    background-color: var(--color-coral);
+    color: #fff;
+  }
+
+  /* Visible keyboard focus everywhere (accessibility floor). */
+  :focus-visible {
+    outline: 2px solid var(--color-coral);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  h1, h2, h3, h4 {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+  }
+}
+
+/* ============================================================
+   Components
+   ============================================================ */
+@layer components {
+  /* Page gutter — mobile-first, widens on larger screens. */
+  .container-page {
+    width: 100%;
+    margin-inline: auto;
+    max-width: 76rem;
+    padding-inline: 1.25rem;
+  }
+  @media (min-width: 768px) {
+    .container-page {
+      padding-inline: 2rem;
+    }
+  }
+
+  /* ---- Signature: the lane-line funding meter ----
+     A funding bar drawn like a painted sports-court lane. Faint
+     hash marks score the empty track; turf-green fills it as money
+     comes in; a coral "runner" dot marks the leading edge. */
+  .lane {
+    position: relative;
+    height: 0.65rem;
+    border-radius: 999px;
+    background-color: var(--color-turf-tint);
+    background-image: repeating-linear-gradient(
+      90deg,
+      transparent 0,
+      transparent 11px,
+      rgb(14 124 102 / 0.18) 11px,
+      rgb(14 124 102 / 0.18) 12px
+    );
+    overflow: hidden;
+  }
+  .lane-fill {
+    position: absolute;
+    inset-block: 0;
+    inset-inline-start: 0;
+    border-radius: 999px;
+    background-image: linear-gradient(
+      90deg,
+      var(--color-turf-dark),
+      var(--color-turf)
+    );
+    transition: width 700ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .lane-runner {
+    position: absolute;
+    top: 50%;
+    width: 0.85rem;
+    height: 0.85rem;
+    border-radius: 999px;
+    background: var(--color-coral);
+    border: 2px solid var(--color-surface);
+    box-shadow: 0 1px 4px rgb(21 36 28 / 0.3);
+    transform: translate(-50%, -50%);
+    transition: left 700ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

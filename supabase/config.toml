@@ -1,0 +1,6 @@
+# Minimal Supabase CLI config. Set project_id to your project ref, or run
+# `supabase init` to regenerate a full config. Migrations live in ./migrations.
+project_id = "kitup"
+
+[db]
+major_version = 15
