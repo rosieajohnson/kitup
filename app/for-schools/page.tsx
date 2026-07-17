@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 export const metadata: Metadata = {
   title: "For schools",
   description:
-    "How Australian schools use Kit Up to list the sports gear they need and have the community fund it, item by item.",
+    "How Australian schools use Kit Up to list the sports kit they need and have the community fund it, item by item.",
 };
 
 export default function ForSchoolsPage() {
@@ -82,7 +82,7 @@ export default function ForSchoolsPage() {
             n={5}
             icon={<PackageCheck className="h-5 w-5" aria-hidden />}
             title="Receive your kit"
-            body="Funded items are arranged and provided to your school — as near as possible to what you listed. No vague donation jars, just gear on the court."
+            body="Funded items are arranged and provided to your school — as near as possible to what you listed. No vague donation jars, just kit on the court."
           />
         </ol>
       </section>

@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Minus, Trash2, Loader2, Info, Lock } from "lucide-react";
+import { Plus, Minus, Trash2, Loader2, Info, Lock, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { money, moneyExact } from "@/lib/format";
 import type { HartSportProduct } from "@/lib/types";
@@ -75,21 +75,33 @@ export function CampaignForm({
       })) ?? [],
   );
   const [picked, setPicked] = useState("");
+  const [query, setQuery] = useState("");
 
   const minDeadline = useMemo(() => {
     const d = new Date(Date.now() + 86_400_000);
     return d.toISOString().slice(0, 10);
   }, []);
 
+  // Filter the (large) catalogue by name or category as the school types.
+  const filtered = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return catalogue;
+    return catalogue.filter(
+      (p) =>
+        p.name.toLowerCase().includes(needle) ||
+        (p.category ?? "").toLowerCase().includes(needle),
+    );
+  }, [catalogue, query]);
+
   const grouped = useMemo(() => {
     const map = new Map<string, HartSportProduct[]>();
-    for (const p of catalogue) {
+    for (const p of filtered) {
       const cat = p.category ?? "Other";
       if (!map.has(cat)) map.set(cat, []);
       map.get(cat)!.push(p);
     }
     return Array.from(map.entries());
-  }, [catalogue]);
+  }, [filtered]);
 
   const fundingGoal = items.reduce(
     (sum, it) => sum + it.cost * it.quantity_needed,
@@ -240,9 +252,40 @@ export function CampaignForm({
           What you need
         </h2>
         <p className="mt-1 text-sm text-ink-soft">
-          Add gear from the Hart Sport catalogue. Each item is something donors
+          Add kit from the Hart Sport catalogue. Each item is something donors
           can fund.
         </p>
+
+        {catalogue.length > 0 && (
+          <div className="mt-4">
+            <label htmlFor="catalogue-search" className={labelCls}>
+              Search the catalogue
+            </label>
+            <div className="relative">
+              <Search
+                className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint"
+                aria-hidden
+              />
+              <input
+                id="catalogue-search"
+                type="search"
+                value={query}
+                onChange={(e) => {
+                  setQuery(e.target.value);
+                  setPicked("");
+                }}
+                placeholder="e.g. netball, cones, gym mat, whistle…"
+                className={`${inputCls} pl-10`}
+              />
+            </div>
+            {query.trim() && (
+              <p className="mt-1.5 text-xs text-ink-faint">
+                {filtered.length} product{filtered.length === 1 ? "" : "s"} match
+                &quot;{query.trim()}&quot;
+              </p>
+            )}
+          </div>
+        )}
 
         <div className="mt-4 flex flex-wrap items-end gap-3">
           <div className="min-w-0 flex-1">
@@ -258,7 +301,9 @@ export function CampaignForm({
               <option value="">
                 {catalogue.length === 0
                   ? "Catalogue is empty — import products first"
-                  : "Choose a product…"}
+                  : filtered.length === 0
+                    ? "No products match your search"
+                    : "Choose a product…"}
               </option>
               {grouped.map(([cat, products]) => (
                 <optgroup key={cat} label={cat}>

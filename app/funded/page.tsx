@@ -44,7 +44,7 @@ export default async function FundedPage({ searchParams }: SearchParams) {
         </h1>
         <p className="mt-2 text-ink-soft">
           {confirmed
-            ? "Your payment is confirmed and the gear is on its way to the schools you backed."
+            ? "Your payment is confirmed and the kit is on its way to the schools you backed."
             : "Your payment went through — the campaign totals update within a few moments."}
         </p>
         <div className="mt-6 flex flex-col gap-2">

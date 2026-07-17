@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { Minus, Plus, Check, ExternalLink, ShoppingCart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -59,6 +60,18 @@ export function FundableItem({
       )}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex min-w-0 flex-1 items-start gap-4">
+        {item.product?.image_url && (
+          <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-lg border border-line bg-white">
+            <Image
+              src={item.product.image_url}
+              alt={item.product.name}
+              fill
+              sizes="80px"
+              className="object-contain p-1"
+            />
+          </div>
+        )}
         <div className="min-w-0 flex-1">
           <div className="mb-1.5 flex flex-wrap items-center gap-2">
             {item.category && <Badge tone="neutral">{item.category}</Badge>}
@@ -83,6 +96,7 @@ export function FundableItem({
               <ExternalLink className="h-3 w-3" aria-hidden />
             </a>
           )}
+        </div>
         </div>
 
         <div className="text-right">

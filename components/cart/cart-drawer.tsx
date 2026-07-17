@@ -11,6 +11,8 @@ import {
   lookupDonorEmail,
   type GuestInput,
 } from "@/app/cart/actions";
+import { validatePassword } from "@/lib/password";
+import { PasswordChecklist } from "@/components/password-checklist";
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 type EmailStatus = "idle" | "checking" | "new" | "existing";
@@ -35,6 +37,7 @@ export function CartDrawer() {
   const [createAccount, setCreateAccount] = useState(true);
   const [password, setPassword] = useState("");
   const [emailStatus, setEmailStatus] = useState<EmailStatus>("idle");
+  const [anonymous, setAnonymous] = useState(false);
 
   // Live-check whether the entered email already has an account.
   useEffect(() => {
@@ -69,11 +72,12 @@ export function CartDrawer() {
       }
       // Only offer account creation when the email is new.
       const wantAccount = emailStatus === "new" && createAccount;
-      if (wantAccount && password.length < 6) {
-        setError(
-          "Password must be at least 6 characters — or untick 'Create an account'.",
-        );
-        return;
+      if (wantAccount) {
+        const pwError = validatePassword(password);
+        if (pwError) {
+          setError(pwError + " Or untick 'Create an account'.");
+          return;
+        }
       }
       guest = {
         name: name.trim(),
@@ -91,6 +95,7 @@ export function CartDrawer() {
           quantity: l.quantity,
         })),
         guest,
+        anonymous,
       );
       if (result.error) setError(result.error);
       else if (result.url) window.location.href = result.url;
@@ -266,19 +271,33 @@ export function CartDrawer() {
                       guest.)
                     </label>
                     {createAccount && (
-                      <input
-                        type="password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        placeholder="Create a password (min 6 characters)"
-                        autoComplete="new-password"
-                        className="w-full rounded-md border border-line-strong bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:border-coral focus:outline-none focus:ring-2 focus:ring-coral/30"
-                      />
+                      <>
+                        <input
+                          type="password"
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          placeholder="Create a password"
+                          autoComplete="new-password"
+                          className="w-full rounded-md border border-line-strong bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:border-coral focus:outline-none focus:ring-2 focus:ring-coral/30"
+                        />
+                        <PasswordChecklist password={password} className="mt-1.5" />
+                      </>
                     )}
                   </>
                 )}
               </div>
             )}
+
+            <label className="mb-3 flex items-start gap-2 text-xs text-ink-soft">
+              <input
+                type="checkbox"
+                checked={anonymous}
+                onChange={(e) => setAnonymous(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-line-strong text-coral focus:ring-coral/30"
+              />
+              Make my donation anonymous — show my name as &quot;Anonymous&quot;
+              to the public.
+            </label>
 
             <Button
               size="lg"

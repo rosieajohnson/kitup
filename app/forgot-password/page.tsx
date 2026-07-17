@@ -4,8 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Loader2, MailCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { createClient } from "@/lib/supabase/client";
-import { isSupabaseConfigured } from "@/lib/supabase/env";
+import { requestPasswordReset } from "./actions";
 
 export default function ForgotPasswordPage() {
   const [error, setError] = useState<string | null>(null);
@@ -16,11 +15,6 @@ export default function ForgotPasswordPage() {
     e.preventDefault();
     setError(null);
 
-    if (!isSupabaseConfigured()) {
-      setError("Password reset needs Supabase connected.");
-      return;
-    }
-
     const email = String(
       new FormData(e.currentTarget).get("email") ?? "",
     ).trim();
@@ -30,13 +24,11 @@ export default function ForgotPasswordPage() {
     }
 
     setLoading(true);
-    const supabase = createClient();
-    const { error: resetError } = await supabase.auth.resetPasswordForEmail(
-      email,
-      { redirectTo: `${window.location.origin}/auth/callback?next=/reset-password` },
-    );
-    if (resetError) {
-      setError(resetError.message);
+    // Server action: mints the recovery token and emails our own
+    // /auth/confirm link via Resend (bypasses the Supabase email template).
+    const result = await requestPasswordReset(email, window.location.origin);
+    if (result.error) {
+      setError(result.error);
       setLoading(false);
       return;
     }

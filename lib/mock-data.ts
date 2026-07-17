@@ -32,6 +32,7 @@ export const MOCK_CAMPAIGNS: CampaignDetail[] = [
       suburb: "Brunswick East",
       state: "VIC",
       verified: true,
+      abnVerified: true,
     },
     items: [
       {
@@ -50,6 +51,7 @@ export const MOCK_CAMPAIGNS: CampaignDetail[] = [
           category: "Basketball",
           unit_price: 39.95,
           product_url: "https://hartsport.com.au/your-product-page",
+          image_url: null,
           synced_at: inDays(-1),
         },
         quantity_funded: 8,
@@ -72,6 +74,7 @@ export const MOCK_CAMPAIGNS: CampaignDetail[] = [
           category: "Basketball",
           unit_price: 449,
           product_url: "https://hartsport.com.au/your-product-page",
+          image_url: null,
           synced_at: inDays(-1),
         },
         quantity_funded: 1,
@@ -94,6 +97,7 @@ export const MOCK_CAMPAIGNS: CampaignDetail[] = [
           category: "Storage",
           unit_price: 189,
           product_url: "https://hartsport.com.au/your-product-page",
+          image_url: null,
           synced_at: inDays(-1),
         },
         quantity_funded: 0,
@@ -116,6 +120,7 @@ export const MOCK_CAMPAIGNS: CampaignDetail[] = [
           category: "Accessories",
           unit_price: 24.95,
           product_url: "https://hartsport.com.au/your-product-page",
+          image_url: null,
           synced_at: inDays(-1),
         },
         quantity_funded: 2,
@@ -144,6 +149,7 @@ export const MOCK_CAMPAIGNS: CampaignDetail[] = [
       suburb: "Redland Bay",
       state: "QLD",
       verified: true,
+      abnVerified: true,
     },
     items: [
       {
@@ -162,6 +168,7 @@ export const MOCK_CAMPAIGNS: CampaignDetail[] = [
           category: "Netball",
           unit_price: 545,
           product_url: "https://hartsport.com.au/your-product-page",
+          image_url: null,
           synced_at: inDays(-1),
         },
         quantity_funded: 2,
@@ -184,6 +191,7 @@ export const MOCK_CAMPAIGNS: CampaignDetail[] = [
           category: "Netball",
           unit_price: 100,
           product_url: "https://hartsport.com.au/your-product-page",
+          image_url: null,
           synced_at: inDays(-1),
         },
         quantity_funded: 2,
@@ -197,7 +205,7 @@ export const MOCK_CAMPAIGNS: CampaignDetail[] = [
     status: "live",
     title: "Cross-country & athletics starter kit",
     summary:
-      "Building a running club for 120 kids — we need timing gear, cones and a long-jump mat.",
+      "Building a running club for 120 kids — we need timing kit, cones and a long-jump mat.",
     description:
       "Last year's fun run turned into a weekly running club nobody expected. We're now coaching sprints and long jump too, all with a borrowed stopwatch and witches' hats from the car park. A proper kit lets us run safe, measurable sessions and a real school carnival.",
     funding_goal: 980,
@@ -212,6 +220,7 @@ export const MOCK_CAMPAIGNS: CampaignDetail[] = [
       suburb: "Kalgoorlie",
       state: "WA",
       verified: false,
+      abnVerified: false,
     },
     items: [
       {
@@ -230,6 +239,7 @@ export const MOCK_CAMPAIGNS: CampaignDetail[] = [
           category: "Athletics",
           unit_price: 59,
           product_url: "https://hartsport.com.au/your-product-page",
+          image_url: null,
           synced_at: inDays(-1),
         },
         quantity_funded: 2,
@@ -252,6 +262,7 @@ export const MOCK_CAMPAIGNS: CampaignDetail[] = [
           category: "Athletics",
           unit_price: 119,
           product_url: "https://hartsport.com.au/your-product-page",
+          image_url: null,
           synced_at: inDays(-1),
         },
         quantity_funded: 1,
@@ -274,6 +285,7 @@ export const MOCK_CAMPAIGNS: CampaignDetail[] = [
           category: "Athletics",
           unit_price: 743,
           product_url: "https://hartsport.com.au/your-product-page",
+          image_url: null,
           synced_at: inDays(-1),
         },
         quantity_funded: 0,
@@ -302,6 +314,7 @@ export const MOCK_CAMPAIGNS: CampaignDetail[] = [
       suburb: "Glenorchy",
       state: "TAS",
       verified: true,
+      abnVerified: true,
     },
     items: [
       {
@@ -320,6 +333,7 @@ export const MOCK_CAMPAIGNS: CampaignDetail[] = [
           category: "Soccer",
           unit_price: 329,
           product_url: "https://hartsport.com.au/your-product-page",
+          image_url: null,
           synced_at: inDays(-1),
         },
         quantity_funded: 0,
@@ -342,6 +356,7 @@ export const MOCK_CAMPAIGNS: CampaignDetail[] = [
           category: "Soccer",
           unit_price: 25,
           product_url: "https://hartsport.com.au/your-product-page",
+          image_url: null,
           synced_at: inDays(-1),
         },
         quantity_funded: 4,

@@ -2,12 +2,14 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ArrowUpRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { getAdminCampaigns, getAllDonationsReport } from "@/lib/data";
 import { getViewer } from "@/lib/auth";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { money, shortDate } from "@/lib/format";
 import { DownloadReportButton } from "@/components/download-report-button";
 import { SyncRefundsButton } from "@/components/sync-refunds-button";
+import { archiveCampaign, restoreCampaign } from "./actions";
 
 export const metadata = { title: "ASF admin" };
 
@@ -66,6 +68,7 @@ export default async function AdminPage() {
                 <th className="px-4 py-3 text-right font-semibold">Donations</th>
                 <th className="px-4 py-3 text-right font-semibold">Closes</th>
                 <th className="px-4 py-3 text-right font-semibold">Report</th>
+                <th className="px-4 py-3 text-right font-semibold">Manage</th>
               </tr>
             </thead>
             <tbody>
@@ -81,6 +84,8 @@ export default async function AdminPage() {
                   <td className="px-4 py-3">
                     {c.status === "draft" ? (
                       <Badge tone="neutral">Draft</Badge>
+                    ) : c.status === "archived" ? (
+                      <Badge tone="neutral">Archived</Badge>
                     ) : (
                       <Badge tone="turf">Live</Badge>
                     )}
@@ -101,6 +106,41 @@ export default async function AdminPage() {
                     >
                       View <ArrowUpRight className="h-4 w-4" aria-hidden />
                     </Link>
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    {c.status === "archived" ? (
+                      <form action={restoreCampaign}>
+                        <input
+                          type="hidden"
+                          name="campaign_id"
+                          value={c.campaign_id}
+                        />
+                        <Button
+                          type="submit"
+                          size="sm"
+                          variant="outline"
+                          className="border-turf/50 text-turf-dark hover:border-turf hover:bg-turf/10"
+                        >
+                          Restore
+                        </Button>
+                      </form>
+                    ) : (
+                      <form action={archiveCampaign}>
+                        <input
+                          type="hidden"
+                          name="campaign_id"
+                          value={c.campaign_id}
+                        />
+                        <Button
+                          type="submit"
+                          size="sm"
+                          variant="outline"
+                          className="border-coral/50 text-coral-dark hover:border-coral hover:bg-coral/10"
+                        >
+                          Archive
+                        </Button>
+                      </form>
+                    )}
                   </td>
                 </tr>
               ))}

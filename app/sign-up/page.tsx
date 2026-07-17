@@ -8,6 +8,10 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
+import { validatePassword } from "@/lib/password";
+import { PasswordChecklist } from "@/components/password-checklist";
+import { normalizeAbn, isValidAbn } from "@/lib/abn";
+import { verifySchoolAbn, precheckSchool } from "@/app/sign-up/actions";
 
 type Role = "donor" | "school";
 
@@ -23,7 +27,7 @@ function friendlySignUpError(err: { message?: string; code?: string }): string {
     return "An account with this email already exists — try signing in instead.";
   }
   if (code === "weak_password" || msg.includes("password")) {
-    return "Password must be at least 6 characters.";
+    return "Your password needs at least 6 characters, a capital letter, a number and a symbol.";
   }
   if (
     !err.message ||
@@ -47,16 +51,24 @@ export default function SignUpPage() {
 function SignUpForm() {
   const router = useRouter();
   const params = useSearchParams();
+  // Kit Up is school-first, so default to a school account unless the link
+  // explicitly asks for a donor (e.g. ?role=donor).
   const [role, setRole] = useState<Role>(
-    params.get("role") === "school" ? "school" : "donor",
+    params.get("role") === "donor" ? "donor" : "school",
   );
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
+  const [password, setPassword] = useState("");
+  // School name is controlled so ACARA suggestions can fill it in on a
+  // mismatch (see precheckSchool).
+  const [schoolName, setSchoolName] = useState("");
+  const [suggestions, setSuggestions] = useState<string[]>([]);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
+    setSuggestions([]);
 
     if (!isSupabaseConfigured()) {
       setError(
@@ -67,7 +79,6 @@ function SignUpForm() {
 
     const form = new FormData(e.currentTarget);
     const email = String(form.get("email") ?? "").trim();
-    const password = String(form.get("password") ?? "");
 
     // Validate up front (mirrors the DB constraints) so we can name the
     // exact problem instead of surfacing a generic database error.
@@ -77,8 +88,9 @@ function SignUpForm() {
       );
       return;
     }
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters.");
+    const passwordError = validatePassword(password);
+    if (passwordError) {
+      setError(passwordError);
       return;
     }
 
@@ -86,18 +98,39 @@ function SignUpForm() {
     // (migration 0004) to provision the profiles + schools/donors rows.
     let metadata: Record<string, string>;
     if (role === "school") {
-      const school = String(form.get("school") ?? "").trim();
+      const school = schoolName.trim();
       const suburb = String(form.get("suburb") ?? "").trim();
       const postcode = String(form.get("postcode") ?? "").trim();
+      const abn = normalizeAbn(String(form.get("abn") ?? ""));
       if (!school) {
         setError("Please enter your school's name.");
         return;
       }
-      if (postcode && !/^[0-9]{4}$/.test(postcode)) {
-        setError("Postcode must be 4 digits (e.g. 3057), or left blank.");
+      if (!isValidAbn(abn)) {
+        setError(
+          "Enter a valid 11-digit ABN — double-check the number (it failed the ABN checksum).",
+        );
         return;
       }
-      metadata = { role, school, suburb, postcode };
+      if (!/^[0-9]{4}$/.test(postcode)) {
+        setError(
+          "Enter your 4-digit postcode — it's checked against the ACARA schools registry.",
+        );
+        return;
+      }
+      metadata = { role, school, suburb, postcode, abn };
+
+      // Verify the school against ACARA (name + postcode) and the ABN against
+      // the ABR BEFORE creating the account — so a wrong postcode/name/ABN is
+      // caught upfront instead of creating an unverified account.
+      setLoading(true);
+      const pre = await precheckSchool({ school, suburb, postcode, abn });
+      if (pre.error) {
+        setError(pre.error);
+        setSuggestions(pre.suggestions ?? []);
+        setLoading(false);
+        return;
+      }
     } else {
       const name = String(form.get("name") ?? "").trim();
       if (!name) {
@@ -112,13 +145,24 @@ function SignUpForm() {
     const { data, error: signUpError } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: metadata },
+      options: {
+        data: metadata,
+        // Where the confirmation-email link returns to (exchanged by
+        // /auth/callback, then on to the app).
+        emailRedirectTo: `${window.location.origin}/auth/callback?next=/`,
+      },
     });
 
     if (signUpError) {
       setError(friendlySignUpError(signUpError));
       setLoading(false);
       return;
+    }
+
+    // Advisory ABN check against the ABR — best-effort, must never block or
+    // delay the sign-up. Persists abn_verified server-side for admin review.
+    if (role === "school" && data.user) {
+      void verifySchoolAbn(data.user.id).catch(() => {});
     }
 
     // With email confirmation on (Supabase default) there is no session
@@ -165,7 +209,8 @@ function SignUpForm() {
           Create your account
         </h1>
         <p className="mt-2 text-center text-ink-soft">
-          Fund the gear local schools need, or list what your school needs.
+          List the sports kit your school needs — or sign up as a donor to back
+          a local school.
         </p>
 
         <div
@@ -174,16 +219,16 @@ function SignUpForm() {
           className="mt-8 grid grid-cols-2 gap-1 rounded-full border border-line bg-surface p-1"
         >
           <RoleTab
-            active={role === "donor"}
-            onClick={() => setRole("donor")}
-            icon={<HandHeart className="h-4 w-4" aria-hidden />}
-            label="Donor"
-          />
-          <RoleTab
             active={role === "school"}
             onClick={() => setRole("school")}
             icon={<GraduationCap className="h-4 w-4" aria-hidden />}
             label="School"
+          />
+          <RoleTab
+            active={role === "donor"}
+            onClick={() => setRole("donor")}
+            icon={<HandHeart className="h-4 w-4" aria-hidden />}
+            label="Donor"
           />
         </div>
 
@@ -202,14 +247,44 @@ function SignUpForm() {
             />
           ) : (
             <>
-              <Field
-                id="school"
-                label="School name"
-                type="text"
-                autoComplete="organization"
-                required
-                placeholder="Brunswick East Primary School"
-              />
+              <div>
+                <Field
+                  id="school"
+                  label="School name"
+                  type="text"
+                  autoComplete="organization"
+                  required
+                  placeholder="Brunswick East Primary School"
+                  value={schoolName}
+                  onChange={(e) => {
+                    setSchoolName(e.target.value);
+                    if (suggestions.length) setSuggestions([]);
+                  }}
+                />
+                {suggestions.length > 0 && (
+                  <div className="mt-2">
+                    <p className="mb-1.5 text-xs font-medium text-ink-soft">
+                      Did you mean:
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {suggestions.map((s) => (
+                        <button
+                          key={s}
+                          type="button"
+                          onClick={() => {
+                            setSchoolName(s);
+                            setSuggestions([]);
+                            setError(null);
+                          }}
+                          className="rounded-full border border-line-strong bg-canvas px-3 py-1 text-xs font-medium text-ink transition-colors hover:border-coral hover:bg-coral/10 hover:text-coral-dark"
+                        >
+                          {s}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <Field
                   id="suburb"
@@ -223,9 +298,18 @@ function SignUpForm() {
                   type="text"
                   inputMode="numeric"
                   pattern="[0-9]{4}"
+                  required
                   placeholder="3057"
                 />
               </div>
+              <Field
+                id="abn"
+                label="ABN"
+                type="text"
+                inputMode="numeric"
+                required
+                placeholder="e.g. 30 981 085 746"
+              />
             </>
           )}
 
@@ -239,15 +323,20 @@ function SignUpForm() {
               role === "school" ? "sport@yourschool.edu.au" : "you@email.com"
             }
           />
-          <Field
-            id="password"
-            label="Password"
-            type="password"
-            autoComplete="new-password"
-            required
-            minLength={6}
-            placeholder="At least 6 characters"
-          />
+          <div>
+            <Field
+              id="password"
+              label="Password"
+              type="password"
+              autoComplete="new-password"
+              required
+              minLength={6}
+              placeholder="Create a password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+            <PasswordChecklist password={password} className="mt-2" />
+          </div>
 
           {error && (
             <p
@@ -277,8 +366,9 @@ function SignUpForm() {
 
         {role === "school" && (
           <p className="mt-4 text-center text-xs text-ink-faint">
-            We verify your school name against the public schools registry —
-            suburb and postcode make the match more accurate.
+            We verify your school against the public schools registry and your
+            ABN against the Australian Business Register — suburb and postcode
+            make the match more accurate.
           </p>
         )}
       </div>
@@ -324,6 +414,8 @@ function Field({
   minLength,
   inputMode,
   pattern,
+  value,
+  onChange,
 }: {
   id: string;
   label: string;
@@ -334,6 +426,8 @@ function Field({
   minLength?: number;
   inputMode?: "numeric" | "text" | "email";
   pattern?: string;
+  value?: string;
+  onChange?: React.ChangeEventHandler<HTMLInputElement>;
 }) {
   return (
     <div>
@@ -353,6 +447,8 @@ function Field({
         minLength={minLength}
         inputMode={inputMode}
         pattern={pattern}
+        value={value}
+        onChange={onChange}
         className="w-full rounded-lg border border-line-strong bg-canvas px-3.5 py-2.5 text-sm text-ink placeholder:text-ink-faint focus:border-coral focus:outline-none focus:ring-2 focus:ring-coral/30"
       />
     </div>

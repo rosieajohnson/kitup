@@ -8,7 +8,7 @@ export function SiteFooter() {
         <div className="space-y-3">
           <Wordmark />
           <p className="max-w-xs text-sm text-ink-soft">
-            Crowdfunding that puts real sports gear in the hands of local
+            Crowdfunding that puts real sports kit in the hands of local
             schools — one item at a time.
           </p>
         </div>
@@ -25,6 +25,7 @@ export function SiteFooter() {
           title="Schools"
           links={[
             ["Start a campaign", "/dashboard"],
+            ["Help & FAQs", "/faq"],
             ["The Hart Sport catalogue", "https://hartsport.com.au"],
             ["School sign in", "/sign-in"],
           ]}

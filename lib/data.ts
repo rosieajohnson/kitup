@@ -40,6 +40,7 @@ interface SchoolRow {
   school: string;
   suburb: string | null;
   address_verified: boolean;
+  abn_verified: boolean;
 }
 
 interface ProductRow {
@@ -49,6 +50,7 @@ interface ProductRow {
   category: string | null;
   unit_price: number | null;
   product_url: string | null;
+  image_url: string | null;
   synced_at: string;
 }
 
@@ -86,6 +88,39 @@ function one<T>(value: T | T[] | null): T | null {
   return value ?? null;
 }
 
+// `abn_verified` is added by migration 0019. Selecting a column that doesn't
+// exist yet makes the whole campaigns query fail (42703), so we gate it behind
+// this flag. It also self-heals: if the column is requested but missing, the
+// query is retried once without it.
+//
+// >>> After applying migration 0019, set ABN_COLUMN_READY = true to light up
+//     the ABN-verified badge from live data. <<<
+const ABN_COLUMN_READY = true;
+let hasAbnColumn = ABN_COLUMN_READY;
+function schoolEmbed(): string {
+  return `school:schools ( id, school, suburb, address_verified${
+    hasAbnColumn ? ", abn_verified" : ""
+  } )`;
+}
+
+// hart_sport_products.image_url ships in migration 0025.
+// >>> After applying migration 0025, set IMAGE_COLUMN_READY = true to show
+//     product photos on campaigns from live data. <<<
+const IMAGE_COLUMN_READY = true;
+const PRODUCT_FIELDS = `id, hart_sku, name, category, unit_price, product_url${
+  IMAGE_COLUMN_READY ? ", image_url" : ""
+}, synced_at`;
+async function withAbnFallback<
+  T extends { error: { code?: string } | null },
+>(run: () => PromiseLike<T>): Promise<T> {
+  const res = await run();
+  if (res.error?.code === "42703" && hasAbnColumn) {
+    hasAbnColumn = false;
+    return run();
+  }
+  return res;
+}
+
 function toSummary(row: CampaignRow, amountRaised: number): CampaignSummary {
   const school = one(row.school);
   return {
@@ -104,6 +139,7 @@ function toSummary(row: CampaignRow, amountRaised: number): CampaignSummary {
       suburb: school?.suburb ?? null,
       state: null, // see note above
       verified: school?.address_verified ?? false,
+      abnVerified: school?.abn_verified ?? false,
     },
   };
 }
@@ -115,15 +151,17 @@ export async function getCampaigns(): Promise<CampaignSummary[]> {
 
   const supabase = await createClient();
 
-  const { data, error } = await supabase
-    .from("campaigns")
-    .select(
-      `id, title, description, status, cover_image, funding_goal, deadline,
-       school:schools ( id, school, suburb, address_verified ),
-       items ( id )`,
-    )
-    .eq("status", "live")
-    .order("deadline", { ascending: true });
+  const { data, error } = await withAbnFallback(() =>
+    supabase
+      .from("campaigns")
+      .select(
+        `id, title, description, status, cover_image, funding_goal, deadline,
+         ${schoolEmbed()},
+         items ( id )`,
+      )
+      .eq("status", "live")
+      .order("deadline", { ascending: true }),
+  );
 
   if (error || !data) {
     console.error("getCampaigns failed:", error?.message);
@@ -146,21 +184,21 @@ export async function getCampaign(id: string): Promise<CampaignDetail | null> {
 
   const supabase = await createClient();
 
-  const { data, error } = await supabase
-    .from("campaigns")
-    .select(
-      `id, title, description, status, cover_image, funding_goal, deadline,
-       school:schools ( id, school, suburb, address_verified ),
-       items (
-         id, campaign_id, hart_product_id, title, description,
-         cost, quantity_needed, created_at,
-         product:hart_sport_products (
-           id, hart_sku, name, category, unit_price, product_url, synced_at
-         )
-       )`,
-    )
-    .eq("id", id)
-    .single();
+  const { data, error } = await withAbnFallback(() =>
+    supabase
+      .from("campaigns")
+      .select(
+        `id, title, description, status, cover_image, funding_goal, deadline,
+         ${schoolEmbed()},
+         items (
+           id, campaign_id, hart_product_id, title, description,
+           cost, quantity_needed, created_at,
+           product:hart_sport_products ( ${PRODUCT_FIELDS} )
+         )`,
+      )
+      .eq("id", id)
+      .single(),
+  );
 
   if (error || !data) {
     console.error("getCampaign failed:", error?.message);
@@ -217,15 +255,17 @@ export async function getCampaignsBySchool(
 
   const supabase = await createClient();
 
-  const { data, error } = await supabase
-    .from("campaigns")
-    .select(
-      `id, title, description, status, cover_image, funding_goal, deadline,
-       school:schools ( id, school, suburb, address_verified ),
-       items ( id )`,
-    )
-    .eq("school_id", schoolId)
-    .order("deadline", { ascending: true });
+  const { data, error } = await withAbnFallback(() =>
+    supabase
+      .from("campaigns")
+      .select(
+        `id, title, description, status, cover_image, funding_goal, deadline,
+         ${schoolEmbed()},
+         items ( id )`,
+      )
+      .eq("school_id", schoolId)
+      .order("deadline", { ascending: true }),
+  );
 
   if (error || !data) {
     console.error("getCampaignsBySchool failed:", error?.message);
@@ -256,9 +296,7 @@ export async function getCatalogue(): Promise<HartSportProduct[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("hart_sport_products")
-    .select(
-      "id, hart_sku, name, category, unit_price, product_url, synced_at",
-    )
+    .select(PRODUCT_FIELDS)
     .order("category", { ascending: true })
     .order("name", { ascending: true });
 
@@ -266,7 +304,7 @@ export async function getCatalogue(): Promise<HartSportProduct[]> {
     console.error("getCatalogue failed:", error?.message);
     return [];
   }
-  return data as HartSportProduct[];
+  return data as unknown as HartSportProduct[];
 }
 
 /**

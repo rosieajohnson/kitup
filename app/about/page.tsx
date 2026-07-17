@@ -4,7 +4,7 @@ import { ShieldCheck, Tag, Lock, BadgeCheck, Receipt } from "lucide-react";
 export const metadata: Metadata = {
   title: "About",
   description:
-    "Kit Up is crowdfunding that puts real sports gear in the hands of local Australian schools — one item at a time.",
+    "Kit Up is crowdfunding that puts real sports kit in the hands of local Australian schools — one item at a time.",
 };
 
 export default function AboutPage() {
@@ -37,7 +37,7 @@ export default function AboutPage() {
           donation is tax deductible and the Australian Sports Foundation
           receives funds and the schools Wish List campaign items. The items (as
           near as possible) are funded and provided to the school. No vague
-          donation jars, just gear on the court.
+          donation jars, just kit on the court.
         </p>
       </section>
 
@@ -63,7 +63,7 @@ export default function AboutPage() {
           />
           <TrustPoint
             icon={<ShieldCheck className="h-5 w-5" aria-hidden />}
-            title="Funds tied to gear"
+            title="Funds tied to kit"
             body="Money is raised against specific items. When an item is funded it's ordered and shipped to the school."
           />
           <TrustPoint

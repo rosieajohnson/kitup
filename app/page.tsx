@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowRight, Plus, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { CampaignCard } from "@/components/campaign-card";
+import { CampaignBrowser } from "@/components/campaign-browser";
 import { SchoolCampaignList } from "@/components/school-campaign-list";
 import { CampaignDonors } from "@/components/campaign-donors";
 import {
@@ -48,14 +48,14 @@ export default async function HomePage() {
           <div className="max-w-3xl">
             <p className="mb-4 inline-flex items-center gap-2 rounded-full border border-line bg-surface px-3 py-1.5 text-xs font-semibold text-ink-soft">
               <ShieldCheck className="h-3.5 w-3.5 text-turf" aria-hidden />
-              Schools verified · Gear priced from Hart Sport
+              Schools verified · Kit priced from Hart Sport
             </p>
             <h1 className="font-display text-4xl font-bold leading-[1.05] tracking-tight text-ink sm:text-6xl">
               Back your local school&apos;s{" "}
               <span className="text-coral">next season.</span>
             </h1>
             <p className="mt-5 max-w-xl text-lg text-ink-soft">
-              Schools list the exact sports gear they need. You fund it item by
+              Schools list the exact sports kit they need. You fund it item by
               item — a set of basketballs, a netball post, a long-jump mat — and
               watch the lane fill up.
             </p>
@@ -72,6 +72,11 @@ export default async function HomePage() {
                   </Button>
                 </Link>
               )}
+              <Link href="/faq">
+                <Button size="lg" variant="ghost">
+                  FAQs
+                </Button>
+              </Link>
             </div>
 
             {/* trust strip — small, not a hero centrepiece */}
@@ -179,11 +184,7 @@ export default async function HomePage() {
           </Link>
         </div>
 
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {campaigns.map((c) => (
-            <CampaignCard key={c.id} campaign={c} />
-          ))}
-        </div>
+        <CampaignBrowser campaigns={campaigns} />
       </section>
 
       {/* ---- Recent supporters (public) ---- */}

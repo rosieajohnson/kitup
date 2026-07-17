@@ -37,11 +37,11 @@ export async function POST(req: NextRequest) {
       createAdminClient(),
     );
   } else if (event.type === "charge.refunded") {
-    // A refund frees the funded items back up. Handle full refunds by
-    // finding the Checkout session behind the charge and marking its
-    // purchases refunded.
+    // A refund frees the funded items back up. Fires for BOTH full and partial
+    // refunds; we pass the cumulative refunded amount so the allocator frees
+    // only the refunded portion (whole funding lines).
     const charge = event.data.object as Stripe.Charge;
-    if (charge.refunded && charge.payment_intent) {
+    if (charge.amount_refunded > 0 && charge.payment_intent) {
       const pi =
         typeof charge.payment_intent === "string"
           ? charge.payment_intent
@@ -52,7 +52,11 @@ export async function POST(req: NextRequest) {
       });
       const sessionId = sessions.data[0]?.id;
       if (sessionId) {
-        await markSessionRefunded(sessionId, createAdminClient());
+        await markSessionRefunded(
+          sessionId,
+          createAdminClient(),
+          charge.amount_refunded / 100,
+        );
       }
     }
   }

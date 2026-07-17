@@ -34,6 +34,7 @@ const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 export async function createCheckoutSession(
   cart: CartLineInput[],
   guest?: GuestInput,
+  anonymous = false,
 ): Promise<{ error?: string; url?: string }> {
   if (!isSupabaseConfigured()) return { error: "Funding needs Supabase connected." };
   if (!isStripeConfigured()) return { error: "Payments aren't set up yet." };
@@ -165,6 +166,7 @@ export async function createCheckoutSession(
     donor_id: donorId ?? "",
     guest_name: guestName ?? "",
     guest_email: guestEmail ?? "",
+    anonymous: anonymous ? "1" : "",
     cart_chunks: String(Math.ceil(cartJson.length / 450)),
   };
   for (let i = 0; i * 450 < cartJson.length; i++) {

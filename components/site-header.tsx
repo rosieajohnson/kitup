@@ -53,14 +53,18 @@ export async function SiteHeader() {
 
         <div className="flex items-center gap-2">
           {signedIn && (
-            <span className="hidden max-w-[14rem] truncate text-sm text-ink-soft sm:inline">
+            <Link
+              href="/dashboard/profile"
+              title="Edit your profile"
+              className="hidden max-w-[14rem] truncate text-sm text-ink-soft transition-colors hover:text-ink sm:inline"
+            >
               <span className="font-semibold text-ink">
                 {viewer.name ?? "Account"}
               </span>
               {roleLabel && (
                 <span className="text-ink-faint"> ({roleLabel})</span>
               )}
-            </span>
+            </Link>
           )}
           <CartButton />
           {signedIn ? (

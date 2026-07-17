@@ -2,7 +2,14 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { ArrowLeft, MapPin, Clock, ShieldCheck, ShieldAlert } from "lucide-react";
+import {
+  ArrowLeft,
+  MapPin,
+  Clock,
+  ShieldCheck,
+  ShieldAlert,
+  BadgeCheck,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ProgressMeter } from "@/components/progress-meter";
@@ -118,6 +125,11 @@ export default async function CampaignPage({ params }: Params) {
                 <ShieldAlert className="h-3 w-3" aria-hidden /> Unverified
               </Badge>
             )}
+            {campaign.school.abnVerified && (
+              <Badge tone="turf">
+                <BadgeCheck className="h-3 w-3" aria-hidden /> ABN verified
+              </Badge>
+            )}
           </div>
 
           <h1 className="mt-3 font-display text-3xl font-bold leading-tight tracking-tight text-ink sm:text-4xl">
@@ -197,7 +209,7 @@ export default async function CampaignPage({ params }: Params) {
 
             <p className="mt-5 text-xs leading-relaxed text-ink-faint">
               {funded
-                ? "This campaign is fully funded — gear is on its way. Thank you!"
+                ? "This campaign is fully funded — kit is on its way. Thank you!"
                 : "Pick any item above to fund. You can cover a whole item or just a share of one."}
             </p>
           </div>
@@ -206,7 +218,7 @@ export default async function CampaignPage({ params }: Params) {
             <p className="font-semibold text-ink">Where your money goes</p>
             <p className="mt-1 leading-relaxed">
               Every item is priced directly from the Hart Sport catalogue. Funds
-              are released to order the gear once an item is covered.
+              are released to order the kit once an item is covered.
             </p>
           </div>
         </aside>

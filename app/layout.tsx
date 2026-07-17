@@ -23,14 +23,14 @@ const jakarta = Plus_Jakarta_Sans({
 
 export const metadata: Metadata = {
   title: {
-    default: "Kit Up — fund the sports gear local schools need",
+    default: "Kit Up — fund the sports kit local schools need",
     template: "%s · Kit Up",
   },
   description:
     "Kit Up is a crowdfunding platform where Australian schools list the sports equipment they need and donors fund it, item by item.",
   metadataBase: new URL("https://kitup.example"),
   openGraph: {
-    title: "Kit Up — fund the sports gear local schools need",
+    title: "Kit Up — fund the sports kit local schools need",
     description:
       "Back your local school's next season. Browse real equipment needs and fund them item by item.",
     type: "website",

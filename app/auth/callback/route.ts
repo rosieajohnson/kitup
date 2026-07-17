@@ -29,6 +29,11 @@ export async function GET(request: NextRequest) {
   }
 
   // No code, or the link was already expired/consumed (e.g. an email
-  // security scanner pre-opened it). Send them back to request a fresh one.
-  return NextResponse.redirect(`${origin}/forgot-password?expired=1`);
+  // security scanner pre-opened it). Route by flow: recovery links go back to
+  // request a fresh reset; anything else (e.g. a signup confirm) goes to
+  // sign-in — never dump a signup on the password-reset page.
+  const dest = next.includes("reset-password")
+    ? "/forgot-password?expired=1"
+    : "/sign-in?confirm=expired";
+  return NextResponse.redirect(`${origin}${dest}`);
 }

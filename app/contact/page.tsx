@@ -31,7 +31,7 @@ export default function ContactPage() {
             <h2 className="mt-4 font-bold text-ink">For schools</h2>
             <p className="mt-1 text-sm leading-relaxed text-ink-soft">
               Help getting verified, building a campaign, or receiving your
-              gear once it&apos;s funded.
+              kit once it&apos;s funded.
             </p>
           </div>
           <div className="rounded-xl border border-line bg-surface p-6">

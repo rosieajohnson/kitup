@@ -7,6 +7,7 @@ import {
   Clock,
   ShieldCheck,
   ShieldAlert,
+  BadgeCheck,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ProgressMeter } from "@/components/progress-meter";
@@ -63,6 +64,14 @@ export function CampaignCard({ campaign }: { campaign: CampaignSummary }) {
               title="Not yet verified"
             >
               <ShieldAlert className="h-3.5 w-3.5" aria-hidden /> Unverified
+            </span>
+          )}
+          {campaign.school.abnVerified && (
+            <span
+              className="inline-flex items-center gap-1 text-turf-dark"
+              title="ABN verified against the Australian Business Register"
+            >
+              <BadgeCheck className="h-3.5 w-3.5" aria-hidden /> ABN verified
             </span>
           )}
         </div>

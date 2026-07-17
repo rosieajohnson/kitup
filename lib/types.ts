@@ -8,7 +8,7 @@
 export type UserRole = "school" | "donor";
 
 /** A campaign is a private draft until the school publishes it. */
-export type CampaignStatus = "draft" | "live";
+export type CampaignStatus = "draft" | "live" | "archived";
 
 /** public.profiles — the "users" umbrella, 1:1 with auth.users. */
 export interface Profile {
@@ -64,6 +64,8 @@ export interface HartSportProduct {
   category: string | null;
   unit_price: number | null;
   product_url: string | null;
+  /** Self-hosted product photo (e.g. /hart/4-226.webp), or null if none. */
+  image_url: string | null;
   synced_at: string;
 }
 
@@ -120,6 +122,7 @@ export interface CampaignSummary {
     suburb: string | null;
     state: string | null;
     verified: boolean;
+    abnVerified: boolean;
   };
 }
 

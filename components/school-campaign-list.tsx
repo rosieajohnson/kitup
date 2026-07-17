@@ -26,6 +26,8 @@ export function SchoolCampaignList({
                 <div className="mb-1.5 flex items-center gap-2">
                   {c.status === "draft" ? (
                     <Badge tone="neutral">Draft</Badge>
+                  ) : c.status === "archived" ? (
+                    <Badge tone="neutral">Archived by admin</Badge>
                   ) : funded ? (
                     <Badge tone="turf">Fully funded</Badge>
                   ) : (

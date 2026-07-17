@@ -1,15 +1,26 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 
 export default function SignInPage() {
+  // useSearchParams must sit under a Suspense boundary (Next 15).
+  return (
+    <Suspense fallback={null}>
+      <SignInForm />
+    </Suspense>
+  );
+}
+
+function SignInForm() {
   const router = useRouter();
+  const params = useSearchParams();
+  const confirmExpired = params.get("confirm") === "expired";
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -34,7 +45,14 @@ export default function SignInPage() {
       await supabase.auth.signInWithPassword({ email, password });
 
     if (signInError || !data.user) {
-      setError(signInError?.message ?? "Could not sign in.");
+      const notConfirmed =
+        signInError?.code === "email_not_confirmed" ||
+        (signInError?.message ?? "").toLowerCase().includes("not confirmed");
+      setError(
+        notConfirmed
+          ? "Please verify your email first — check your inbox for the confirmation link."
+          : (signInError?.message ?? "Could not sign in."),
+      );
       setLoading(false);
       return;
     }
@@ -57,8 +75,19 @@ export default function SignInPage() {
           Welcome back
         </h1>
         <p className="mt-2 text-center text-ink-soft">
-          Sign in to keep funding, or to manage your school&apos;s campaigns.
+          Sign in to manage your school&apos;s campaigns — or to keep funding.
         </p>
+
+        {confirmExpired && (
+          <p
+            role="status"
+            className="mt-6 rounded-lg bg-sun/15 px-4 py-3 text-center text-sm font-medium text-ink"
+          >
+            That confirmation link has expired or was already used. Sign in
+            below — if your email still isn&apos;t verified, we&apos;ll offer to
+            resend the link.
+          </p>
+        )}
 
         <form
           className="mt-8 space-y-4 rounded-xl border border-line bg-surface p-6 shadow-card"
