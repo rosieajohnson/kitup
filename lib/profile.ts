@@ -9,6 +9,14 @@ import crypto from "node:crypto";
  */
 export const PROFILE_EDIT_READY = true;
 
+/**
+ * schools.delivery_confirmed (migration 0027). Gated OFF until the migration is
+ * applied — flip to true afterwards. Until then the profile + invoice skip the
+ * confirmation flag (the delivery address itself, schools.address, works either
+ * way since that column already exists).
+ */
+export const DELIVERY_CONFIRM_READY = false;
+
 /** How long an email-verified edit window stays open. */
 export const UNLOCK_WINDOW_MS = 30 * 60 * 1000; // 30 min
 /** How long the emailed unlock link is valid. */

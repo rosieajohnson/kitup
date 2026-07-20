@@ -52,7 +52,7 @@ export default async function ProfilePage({
   if (role === "school") {
     const { data } = await supabase
       .from("schools")
-      .select("school, suburb, postcode, abn, contact_phone")
+      .select("school, suburb, postcode, abn, contact_phone, address")
       .eq("id", user.id)
       .single();
     initial = {
@@ -61,6 +61,7 @@ export default async function ProfilePage({
       postcode: data?.postcode ?? "",
       abn: data?.abn ?? "",
       contact_phone: data?.contact_phone ?? "",
+      address: data?.address ?? "",
     };
   } else {
     const { data } = await supabase

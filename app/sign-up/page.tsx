@@ -11,7 +11,11 @@ import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { validatePassword } from "@/lib/password";
 import { PasswordChecklist } from "@/components/password-checklist";
 import { normalizeAbn, isValidAbn } from "@/lib/abn";
-import { verifySchoolAbn, precheckSchool } from "@/app/sign-up/actions";
+import {
+  verifySchoolAbn,
+  precheckSchool,
+  geocodeSchoolAddress,
+} from "@/app/sign-up/actions";
 
 type Role = "donor" | "school";
 
@@ -163,6 +167,8 @@ function SignUpForm() {
     // delay the sign-up. Persists abn_verified server-side for admin review.
     if (role === "school" && data.user) {
       void verifySchoolAbn(data.user.id).catch(() => {});
+      // Fill a delivery street address from ACARA coordinates (best-effort).
+      void geocodeSchoolAddress(data.user.id).catch(() => {});
     }
 
     // With email confirmation on (Supabase default) there is no session

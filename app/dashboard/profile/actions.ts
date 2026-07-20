@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import {
   PROFILE_EDIT_READY,
+  DELIVERY_CONFIRM_READY,
   UNLOCK_LINK_TTL_MS,
   signUnlockToken,
   isUnlocked,
@@ -112,6 +113,7 @@ export async function updateProfile(
     const suburb = String(formData.get("suburb") ?? "").trim();
     const postcode = String(formData.get("postcode") ?? "").trim();
     const abn = normalizeAbn(String(formData.get("abn") ?? ""));
+    const address = String(formData.get("address") ?? "").trim();
 
     if (!school) return { error: "School name can't be empty." };
     if (!/^[0-9]{4}$/.test(postcode)) {
@@ -165,7 +167,10 @@ export async function updateProfile(
       school, suburb: suburb || null, postcode: postcode || null,
       contact_phone: phone || null,
       abn,
+      address: address || null,
     };
+    // Saving the profile counts as the school confirming its delivery address.
+    if (DELIVERY_CONFIRM_READY) update.delivery_confirmed = true;
     if (abnOrNameChanged) {
       update.abn_verified = true;
       update.abn_entity_name = abnEntity;

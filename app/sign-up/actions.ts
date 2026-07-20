@@ -3,6 +3,20 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { lookupAbn, namesMatch } from "@/lib/abr";
 import { normalizeAbn, isValidAbn } from "@/lib/abn";
+import { fillSchoolDeliveryAddress } from "@/lib/geocode";
+
+/**
+ * Best-effort: reverse-geocode a newly-provisioned school's ACARA coordinates
+ * into a delivery street address (schools.address). Never blocks sign-up; the
+ * school can confirm/correct it later in their profile.
+ */
+export async function geocodeSchoolAddress(userId: string): Promise<void> {
+  try {
+    await fillSchoolDeliveryAddress(createAdminClient(), userId);
+  } catch {
+    /* best-effort */
+  }
+}
 
 /**
  * Pre-signup gate for school accounts: verify the school name + postcode

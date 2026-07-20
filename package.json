@@ -9,7 +9,8 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "sync:images": "node scripts/sync_product_images.mjs"
+    "sync:images": "node scripts/sync_product_images.mjs",
+    "enrich:addresses": "node scripts/enrich_school_addresses.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",

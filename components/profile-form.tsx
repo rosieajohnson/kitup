@@ -133,6 +133,14 @@ export function ProfileForm({
             Changing the school name re-checks it against the ACARA registry and
             your ABN — a mismatch will be rejected.
           </p>
+          {field("address", "Delivery address", {
+            placeholder: "e.g. 195A Stewart Street",
+            defaultValue: initial.address,
+          })}
+          <p className="-mt-2 text-xs text-ink-faint">
+            Where funded kit is delivered. We pre-fill this from your school&apos;s
+            registered location — please check it&apos;s correct. Saving confirms it.
+          </p>
         </>
       ) : (
         field("name", "Your name", { defaultValue: initial.name })

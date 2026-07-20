@@ -75,6 +75,8 @@ export interface SchoolInvoice {
   abnEntityName: string | null;
   /** One-line ABN cross-check result vs the ACARA address. */
   abnCrossCheck: string;
+  /** Whether the school has confirmed its delivery address in its profile. */
+  deliveryConfirmed: boolean;
   donorLabel: string;
   sessionId: string;
   /** Invoice date, ISO string (formatted for display here). */
@@ -104,6 +106,9 @@ export async function notifyAdminInvoice(inv: SchoolInvoice): Promise<boolean> {
   });
   const ref = inv.sessionId.slice(-10).toUpperCase();
   const subject = `[Kit Up] Order invoice — ${inv.schoolName} — ${money(inv.total)}`;
+  const deliveryNote = inv.deliveryConfirmed
+    ? "Delivery address confirmed by the school ✓"
+    : "Delivery address auto-detected from ACARA location — confirm with the school before shipping.";
 
   // ---- plain text ----
   const pad = (s: string, n: number) => (s + " ".repeat(n)).slice(0, n);
@@ -128,6 +133,7 @@ DELIVER / BILL TO:
   ${inv.acaraAddress ?? "(address not matched in ACARA registry)"}
   ABN: ${inv.abn ?? "—"}${inv.abnEntityName ? `  (${inv.abnEntityName})` : ""}
   ${inv.abnCrossCheck}
+  ${deliveryNote}
 
 Funded by: ${inv.donorLabel}
 Stripe session: ${inv.sessionId}
@@ -166,6 +172,7 @@ deliver to the school address above.
       <div>${esc(inv.acaraAddress ?? "(address not matched in ACARA registry)")}</div>
       <div>ABN: ${esc(inv.abn ?? "—")}${inv.abnEntityName ? ` <span style="color:#555">(${esc(inv.abnEntityName)})</span>` : ""}</div>
       <div style="font-size:13px;color:#555;margin-top:4px">${esc(inv.abnCrossCheck)}</div>
+      <div style="font-size:13px;margin-top:4px;color:${inv.deliveryConfirmed ? "#2e7d32" : "#b26a00"}">${esc(deliveryNote)}</div>
     </div>
     <table style="border-collapse:collapse;width:100%;font-size:14px">
       <thead><tr style="text-align:left;color:#555;font-size:12px;text-transform:uppercase">

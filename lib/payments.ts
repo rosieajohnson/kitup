@@ -4,12 +4,25 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { notifyAdminInvoice, notifyAdminCampaignFunded } from "@/lib/notify";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { lookupAbn } from "@/lib/abr";
+import { DELIVERY_CONFIRM_READY } from "@/lib/profile";
 
 interface CartMapLine {
   i: string; // item_id
   c: string; // campaign_id
   q: number; // quantity
   a: number; // amount (dollars)
+}
+
+interface SchoolRow {
+  id: string;
+  school: string;
+  address: string | null;
+  suburb: string | null;
+  postcode: string | null;
+  abn: string | null;
+  abn_entity_name: string | null;
+  abn_verified: boolean | null;
+  delivery_confirmed?: boolean | null;
 }
 
 /**
@@ -124,27 +137,28 @@ async function notifyAdmin(
     const schoolIds = Array.from(
       new Set((camps ?? []).map((c) => c.school_id).filter(Boolean)),
     );
-    const { data: schools } = schoolIds.length
-      ? await admin
-          .from("schools")
-          .select(
-            "id, school, address, suburb, postcode, abn, abn_entity_name, abn_verified",
-          )
-          .in("id", schoolIds)
+    const schoolFields =
+      "id, school, address, suburb, postcode, abn, abn_entity_name, abn_verified" +
+      (DELIVERY_CONFIRM_READY ? ", delivery_confirmed" : "");
+    const { data: schoolsRaw } = schoolIds.length
+      ? await admin.from("schools").select(schoolFields).in("id", schoolIds)
       : { data: [] };
+    const schools = (schoolsRaw ?? []) as unknown as SchoolRow[];
 
     const campById = new Map((camps ?? []).map((c) => [c.id, c]));
     const itemById = new Map((its ?? []).map((i) => [i.id, i]));
     const schoolById = new Map((schools ?? []).map((s) => [s.id, s]));
 
-    // Per-school: resolve the ACARA-registered address + ABN cross-check once.
+    // Per-school: resolve the delivery address (street + ACARA locality) and
+    // the ABN cross-check once.
     const schoolInfo = new Map<
       string,
-      { acaraAddress: string | null; abnCrossCheck: string }
+      { acaraAddress: string | null; abnCrossCheck: string; deliveryConfirmed: boolean }
     >();
     await Promise.all(
       (schools ?? []).map(async (s) => {
-        let acaraAddress: string | null = null;
+        // ACARA locality (suburb/state/postcode) — authoritative for the town.
+        let locality: string | null = null;
         try {
           const { data: chk } = await admin.rpc("check_school_address", {
             p_school: s.school,
@@ -153,18 +167,23 @@ async function notifyAdmin(
             p_postcode: s.postcode ?? null,
           });
           if (chk?.status === "match" && chk?.matched_address) {
-            acaraAddress = chk.matched_address as string;
+            locality = chk.matched_address as string;
           }
         } catch {
           /* best-effort */
         }
-        if (!acaraAddress) {
-          acaraAddress =
-            [s.address, s.suburb, s.postcode].filter(Boolean).join(" ") || null;
+        if (!locality) {
+          locality = [s.suburb, s.postcode].filter(Boolean).join(" ") || null;
         }
+        // Full deliverable line: the (geocoded/confirmed) street + locality.
+        const deliveryAddress =
+          [s.address, locality].filter(Boolean).join(", ") || null;
         schoolInfo.set(s.id, {
-          acaraAddress,
+          acaraAddress: deliveryAddress,
           abnCrossCheck: await buildAbnCrossCheck(s),
+          deliveryConfirmed: DELIVERY_CONFIRM_READY
+            ? Boolean(s.delivery_confirmed)
+            : false,
         });
       }),
     );
@@ -182,6 +201,7 @@ async function notifyAdmin(
       const info = schoolInfo.get(sid) ?? {
         acaraAddress: null,
         abnCrossCheck: "No ABN on file.",
+        deliveryConfirmed: false,
       };
       const invLines = sLines.map((l) => {
         const it = itemById.get(l.i);
@@ -201,6 +221,7 @@ async function notifyAdmin(
         abn: school?.abn ?? null,
         abnEntityName: school?.abn_entity_name ?? null,
         abnCrossCheck: info.abnCrossCheck,
+        deliveryConfirmed: info.deliveryConfirmed,
         donorLabel,
         sessionId: session.id,
         dateISO,
