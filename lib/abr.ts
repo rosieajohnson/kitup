@@ -15,6 +15,8 @@ export interface AbrResult {
   status: string | null; // e.g. "Active"
   entityName: string | null; // registered legal/entity name
   businessNames: string[]; // trading names
+  addressState: string | null; // ABN registered address — state (e.g. "VIC")
+  addressPostcode: string | null; // ABN registered address — postcode
   reason?: string; // why !ok (no_guid, invalid_checksum, not_found, http_x…)
 }
 
@@ -26,6 +28,8 @@ export async function lookupAbn(rawAbn: string): Promise<AbrResult> {
     status: null,
     entityName: null,
     businessNames: [],
+    addressState: null,
+    addressPostcode: null,
   };
 
   if (!isValidAbn(abn)) return { ...base, reason: "invalid_checksum" };
@@ -47,12 +51,22 @@ export async function lookupAbn(rawAbn: string): Promise<AbrResult> {
     const businessNames: string[] = Array.isArray(json.BusinessName)
       ? json.BusinessName.filter(Boolean)
       : [];
+    const addressState: string | null = json.AddressState || null;
+    const addressPostcode: string | null = json.AddressPostcode || null;
 
     // ABR returns a Message (e.g. "Search text is not a valid ABN") on failure.
     if (!entityName && json.Message) return { ...base, reason: String(json.Message) };
     if (!entityName) return { ...base, reason: "not_found" };
 
-    return { ok: true, abn, status, entityName, businessNames };
+    return {
+      ok: true,
+      abn,
+      status,
+      entityName,
+      businessNames,
+      addressState,
+      addressPostcode,
+    };
   } catch {
     return { ...base, reason: "fetch_error" };
   }

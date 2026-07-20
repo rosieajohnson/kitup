@@ -1,7 +1,9 @@
 import "server-only";
 import type Stripe from "stripe";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { notifyAdminDonation, notifyAdminCampaignFunded } from "@/lib/notify";
+import { notifyAdminInvoice, notifyAdminCampaignFunded } from "@/lib/notify";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { lookupAbn } from "@/lib/abr";
 
 interface CartMapLine {
   i: string; // item_id
@@ -87,10 +89,14 @@ export async function recordPurchasesFromSession(
  */
 async function notifyAdmin(
   session: Stripe.Checkout.Session,
-  client: SupabaseClient,
+  _client: SupabaseClient,
   lines: CartMapLine[],
 ): Promise<void> {
   try {
+    // Enrichment reads use the service-role client so this works from both the
+    // donor's success page and the webhook, and can read school_registry /
+    // the catalogue regardless of the caller's RLS.
+    const admin = createAdminClient();
     const meta = session.metadata ?? {};
     const anonymous = meta.anonymous === "1";
     const payerName = session.customer_details?.name || meta.guest_name || null;
@@ -106,46 +112,112 @@ async function notifyAdmin(
     const itemIds = Array.from(new Set(lines.map((l) => l.i)));
 
     const [{ data: camps }, { data: its }] = await Promise.all([
-      client
+      admin
         .from("campaigns")
         .select("id, title, school_id")
         .in("id", campaignIds),
-      client.from("items").select("id, title").in("id", itemIds),
+      admin
+        .from("items")
+        .select("id, title, product:hart_sport_products(hart_sku)")
+        .in("id", itemIds),
     ]);
     const schoolIds = Array.from(
       new Set((camps ?? []).map((c) => c.school_id).filter(Boolean)),
     );
     const { data: schools } = schoolIds.length
-      ? await client.from("schools").select("id, school").in("id", schoolIds)
+      ? await admin
+          .from("schools")
+          .select(
+            "id, school, address, suburb, postcode, abn, abn_entity_name, abn_verified",
+          )
+          .in("id", schoolIds)
       : { data: [] };
 
     const campById = new Map((camps ?? []).map((c) => [c.id, c]));
-    const itemTitleById = new Map((its ?? []).map((i) => [i.id, i.title]));
-    const schoolById = new Map((schools ?? []).map((s) => [s.id, s.school]));
+    const itemById = new Map((its ?? []).map((i) => [i.id, i]));
+    const schoolById = new Map((schools ?? []).map((s) => [s.id, s]));
 
-    // 1) donation notice (every donation)
-    await notifyAdminDonation({
-      donorLabel,
-      total: (session.amount_total ?? 0) / 100,
-      sessionId: session.id,
-      lines: lines.map((l) => ({
-        campaignTitle: campById.get(l.c)?.title ?? "a campaign",
-        itemTitle: itemTitleById.get(l.i) ?? "an item",
-        quantity: l.q,
-        unitPrice: l.q > 0 ? l.a / l.q : l.a,
-        amount: l.a,
-      })),
-    });
+    // Per-school: resolve the ACARA-registered address + ABN cross-check once.
+    const schoolInfo = new Map<
+      string,
+      { acaraAddress: string | null; abnCrossCheck: string }
+    >();
+    await Promise.all(
+      (schools ?? []).map(async (s) => {
+        let acaraAddress: string | null = null;
+        try {
+          const { data: chk } = await admin.rpc("check_school_address", {
+            p_school: s.school,
+            p_address: s.address ?? null,
+            p_suburb: s.suburb ?? null,
+            p_postcode: s.postcode ?? null,
+          });
+          if (chk?.status === "match" && chk?.matched_address) {
+            acaraAddress = chk.matched_address as string;
+          }
+        } catch {
+          /* best-effort */
+        }
+        if (!acaraAddress) {
+          acaraAddress =
+            [s.address, s.suburb, s.postcode].filter(Boolean).join(" ") || null;
+        }
+        schoolInfo.set(s.id, {
+          acaraAddress,
+          abnCrossCheck: await buildAbnCrossCheck(s),
+        });
+      }),
+    );
+
+    // 1) One invoice per funded school (every donation).
+    const linesBySchool = new Map<string, CartMapLine[]>();
+    for (const l of lines) {
+      const sid = campById.get(l.c)?.school_id;
+      if (!sid) continue;
+      (linesBySchool.get(sid) ?? linesBySchool.set(sid, []).get(sid)!).push(l);
+    }
+    const dateISO = new Date().toISOString();
+    for (const [sid, sLines] of linesBySchool) {
+      const school = schoolById.get(sid);
+      const info = schoolInfo.get(sid) ?? {
+        acaraAddress: null,
+        abnCrossCheck: "No ABN on file.",
+      };
+      const invLines = sLines.map((l) => {
+        const it = itemById.get(l.i);
+        const product = Array.isArray(it?.product) ? it?.product[0] : it?.product;
+        return {
+          sku: product?.hart_sku ?? null,
+          campaignTitle: campById.get(l.c)?.title ?? "a campaign",
+          itemTitle: it?.title ?? "an item",
+          quantity: l.q,
+          unitPrice: l.q > 0 ? l.a / l.q : l.a,
+          amount: l.a,
+        };
+      });
+      await notifyAdminInvoice({
+        schoolName: school?.school ?? "the school",
+        acaraAddress: info.acaraAddress,
+        abn: school?.abn ?? null,
+        abnEntityName: school?.abn_entity_name ?? null,
+        abnCrossCheck: info.abnCrossCheck,
+        donorLabel,
+        sessionId: session.id,
+        dateISO,
+        lines: invLines,
+        total: invLines.reduce((s, x) => s + x.amount, 0),
+      });
+    }
 
     // 2) fully-funded notice — check each campaign touched by this donation
     for (const cid of campaignIds) {
-      const { data: items } = await client
+      const { data: items } = await admin
         .from("items")
         .select("id, title, cost, quantity_needed")
         .eq("campaign_id", cid);
       if (!items || items.length === 0) continue;
 
-      const { data: funding } = await client
+      const { data: funding } = await admin
         .from("item_funding")
         .select("item_id, quantity_funded")
         .in(
@@ -161,14 +233,14 @@ async function notifyAdmin(
       if (!fullyFunded) continue;
 
       const camp = campById.get(cid);
-      const { data: cf } = await client
+      const { data: cf } = await admin
         .from("campaign_funding")
         .select("amount_raised")
         .eq("campaign_id", cid)
         .maybeSingle();
       await notifyAdminCampaignFunded({
         campaignTitle: camp?.title ?? "a campaign",
-        schoolName: camp ? (schoolById.get(camp.school_id) ?? null) : null,
+        schoolName: camp ? (schoolById.get(camp.school_id)?.school ?? null) : null,
         amountRaised: Number(cf?.amount_raised ?? 0),
         items: items.map((i) => ({
           title: i.title,
@@ -181,6 +253,43 @@ async function notifyAdmin(
   } catch (err) {
     console.error("notifyAdmin failed (non-fatal):", err);
   }
+}
+
+/**
+ * One-line ABN cross-check for a school's invoice: confirms the ABN is
+ * registered and whether its registered address (state/postcode) lines up with
+ * the school's ACARA locality. Best-effort — never throws.
+ */
+async function buildAbnCrossCheck(school: {
+  abn: string | null;
+  postcode: string | null;
+  abn_verified: boolean | null;
+}): Promise<string> {
+  if (!school.abn) return "No ABN on file.";
+  const res = await lookupAbn(school.abn);
+  if (!res.ok) {
+    return `ABN ${school.abn} on file — not cross-checked (ABR lookup unavailable).`;
+  }
+  const parts: string[] = [];
+  if (school.abn_verified) parts.push("ABN name matches school ✓");
+  if (res.addressPostcode && school.postcode) {
+    if (res.addressPostcode === school.postcode) {
+      parts.push(`ABN registered postcode ${res.addressPostcode} matches ACARA ✓`);
+    } else {
+      parts.push(
+        `⚠ ABN registered address (${[res.addressState, res.addressPostcode]
+          .filter(Boolean)
+          .join(" ")}) differs from ACARA postcode ${school.postcode} — please verify`,
+      );
+    }
+  } else if (res.addressState) {
+    parts.push(
+      `ABN registered in ${res.addressState}${
+        res.addressPostcode ? ` ${res.addressPostcode}` : ""
+      }.`,
+    );
+  }
+  return parts.join("; ") || `ABN ${school.abn} active.`;
 }
 
 /**
