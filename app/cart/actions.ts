@@ -114,6 +114,17 @@ export async function createCheckoutSession(
   const lineItems = [];
   const mapping: { i: string; c: string; q: number; a: number }[] = [];
   const db = user ? supabase : createAdminClient();
+
+  // Reject funding for campaigns that aren't open: only 'live' campaigns whose
+  // deadline hasn't passed accept money.
+  const campaignIds = Array.from(new Set(cart.map((l) => l.campaignId)));
+  const { data: cartCamps } = await db
+    .from("campaigns")
+    .select("id, title, status, deadline")
+    .in("id", campaignIds);
+  const campById = new Map((cartCamps ?? []).map((c) => [c.id, c]));
+  const nowMs = Date.now();
+
   for (const line of cart) {
     const quantity = Math.floor(line.quantity);
     if (!quantity || quantity < 1) continue;
@@ -124,6 +135,19 @@ export async function createCheckoutSession(
       .eq("campaign_id", line.campaignId)
       .single();
     if (!item) return { error: "An item in your cart no longer exists." };
+
+    // The campaign must be open (live and not past its deadline).
+    const camp = campById.get(item.campaign_id);
+    if (!camp || camp.status !== "live") {
+      return {
+        error: `"${item.title}" belongs to a campaign that isn't accepting funding.`,
+      };
+    }
+    if (camp.deadline && new Date(camp.deadline).getTime() < nowMs) {
+      return {
+        error: `"${camp.title ?? "That campaign"}" has closed and is no longer accepting funding — please remove its items from your cart.`,
+      };
+    }
 
     // Don't let anyone fund more than the campaign still needs.
     const { data: funding } = await db

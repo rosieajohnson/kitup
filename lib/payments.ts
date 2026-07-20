@@ -5,6 +5,7 @@ import { notifyAdminInvoice, notifyAdminCampaignFunded } from "@/lib/notify";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { lookupAbn } from "@/lib/abr";
 import { DELIVERY_CONFIRM_READY } from "@/lib/profile";
+import { reconcileCampaign, RECONCILE_READY } from "@/lib/reconcile";
 
 interface CartMapLine {
   i: string; // item_id
@@ -253,6 +254,13 @@ async function notifyAdmin(
       );
       if (!fullyFunded) continue;
 
+      // A fully-funded campaign closes now — send the reconciliation ledger
+      // (once). Before migration 0028 / the flag flip, fall back to the plain
+      // fully-funded notice.
+      if (RECONCILE_READY) {
+        await reconcileCampaign(admin, cid, "fully funded");
+        continue;
+      }
       const camp = campById.get(cid);
       const { data: cf } = await admin
         .from("campaign_funding")

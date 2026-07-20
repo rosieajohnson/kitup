@@ -23,10 +23,12 @@ export function FundableItem({
   item,
   mode,
   campaignTitle,
+  closed = false,
 }: {
   item: ItemWithFunding;
   mode: FundMode;
   campaignTitle: string;
+  closed?: boolean;
 }) {
   const { addLine, open } = useCart();
   const remaining = Math.max(0, item.quantity_needed - item.quantity_funded);
@@ -119,7 +121,11 @@ export function FundableItem({
 
       {/* action row */}
       <div className="mt-4 border-t border-line pt-4">
-        {fullyFunded ? (
+        {closed && !fullyFunded ? (
+          <p className="text-sm text-ink-soft">
+            This campaign has closed — funding is no longer available.
+          </p>
+        ) : fullyFunded ? (
           <p className="text-sm font-medium text-turf-dark">
             This one&apos;s sorted — thanks to the donors who chipped in.
           </p>

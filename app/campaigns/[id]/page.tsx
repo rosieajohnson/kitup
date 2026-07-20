@@ -55,6 +55,10 @@ export default async function CampaignPage({ params }: Params) {
     .filter(Boolean)
     .join(", ");
   const funded = campaign.amount_raised >= campaign.funding_goal;
+  // A campaign stops taking funding once it's not live or its deadline passes.
+  const closed =
+    campaign.status !== "live" ||
+    (!!campaign.deadline && new Date(campaign.deadline).getTime() < Date.now());
 
   return (
     <article className="container-page py-8 sm:py-12">
@@ -64,6 +68,14 @@ export default async function CampaignPage({ params }: Params) {
       >
         <ArrowLeft className="h-4 w-4" aria-hidden /> All campaigns
       </Link>
+
+      {closed && !funded && (
+        <div className="mb-6 rounded-xl border border-line-strong bg-surface-sunk/60 p-4">
+          <p className="text-sm font-medium text-ink">
+            This campaign has closed and is no longer accepting funding.
+          </p>
+        </div>
+      )}
 
       {isOwnerDraft && (
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-coral/30 bg-coral/5 p-4">
@@ -156,6 +168,7 @@ export default async function CampaignPage({ params }: Params) {
                   item={item}
                   mode={fundMode}
                   campaignTitle={campaign.title}
+                  closed={closed}
                 />
               ))}
             </ul>
@@ -210,7 +223,9 @@ export default async function CampaignPage({ params }: Params) {
             <p className="mt-5 text-xs leading-relaxed text-ink-faint">
               {funded
                 ? "This campaign is fully funded — kit is on its way. Thank you!"
-                : "Pick any item above to fund. You can cover a whole item or just a share of one."}
+                : closed
+                  ? "This campaign has closed — funding is no longer available."
+                  : "Pick any item above to fund. You can cover a whole item or just a share of one."}
             </p>
           </div>
 

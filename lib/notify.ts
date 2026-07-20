@@ -195,6 +195,141 @@ deliver to the school address above.
   return sendAdminEmail(subject, text, html);
 }
 
+export interface ReconcileLine {
+  dateISO: string;
+  invoiceRef: string;
+  sku: string | null;
+  itemTitle: string;
+  quantity: number;
+  amount: number;
+}
+
+export interface ReconcileReport {
+  campaignTitle: string;
+  reason: "fully funded" | "deadline reached";
+  schoolName: string | null;
+  deliveryAddress: string | null;
+  deliveryConfirmed: boolean;
+  abn: string | null;
+  abnEntityName: string | null;
+  reportRef: string;
+  dateISO: string;
+  lines: ReconcileLine[];
+  total: number;
+  itemsFunded: number;
+  itemsTotal: number;
+  donationCount: number;
+}
+
+/**
+ * Campaign reconciliation email (sent once, when a campaign closes). A ledger
+ * of every funded purchase — date funded, the donor invoice number it came
+ * under, SKU, amount — plus a dispatch column, so ASF can dispatch each item
+ * and reconcile it against payments received.
+ */
+export async function notifyAdminReconciliation(
+  r: ReconcileReport,
+): Promise<boolean> {
+  const dshort = (iso: string) =>
+    new Date(iso).toLocaleDateString("en-AU", { day: "2-digit", month: "short" });
+  const dfull = new Date(r.dateISO).toLocaleDateString("en-AU", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+  const subject = `[Kit Up] Reconciliation — ${r.campaignTitle} — ${money(r.total)}`;
+  const deliveryNote = r.deliveryConfirmed
+    ? "Delivery address confirmed by the school ✓"
+    : "Delivery address auto-detected from ACARA — confirm before shipping.";
+
+  const pad = (s: string, n: number) => (s + " ".repeat(n)).slice(0, n);
+  const clip = (s: string, n: number) =>
+    s.length > n - 1 ? s.slice(0, n - 2) + "…" : s;
+  const rows = r.lines
+    .map(
+      (l) =>
+        "  " +
+        pad(dshort(l.dateISO), 8) +
+        pad(l.invoiceRef, 14) +
+        pad(l.sku ?? "—", 10) +
+        pad(clip(l.itemTitle, 28), 28) +
+        pad(String(l.quantity), 4) +
+        pad(money(l.amount), 10) +
+        "[ ]",
+    )
+    .join("\n");
+  const text = `KIT UP — CAMPAIGN RECONCILIATION
+Report ${r.reportRef} · ${dfull} · closed: ${r.reason}
+
+Campaign: ${r.campaignTitle}
+
+DELIVER TO:
+  ${r.schoolName ?? "—"}
+  ${r.deliveryAddress ?? "(no delivery address on file)"}
+  ABN: ${r.abn ?? "—"}${r.abnEntityName ? `  (${r.abnEntityName})` : ""}
+  ${deliveryNote}
+
+Items funded: ${r.itemsFunded}/${r.itemsTotal}   Donations: ${r.donationCount}   Total: ${money(r.total)}
+
+  ${pad("FUNDED", 8)}${pad("INVOICE", 14)}${pad("SKU", 10)}${pad("ITEM", 28)}${pad("QTY", 4)}${pad("AMOUNT", 10)}SENT
+  ${"-".repeat(77)}
+${rows}
+  ${"-".repeat(77)}
+  ${pad("", 60)}TOTAL: ${money(r.total)}
+
+Tick each line as it's dispatched. Each row references the donor invoice it was
+funded under, for reconciliation against payments received.
+
+— Kit Up / ASF admin`;
+
+  const htmlRows = r.lines
+    .map(
+      (l) => `<tr>
+      <td style="padding:7px 8px;border-bottom:1px solid #eee">${dshort(l.dateISO)}</td>
+      <td style="padding:7px 8px;border-bottom:1px solid #eee;font-family:monospace;font-size:12px">${esc(l.invoiceRef)}</td>
+      <td style="padding:7px 8px;border-bottom:1px solid #eee;font-family:monospace;font-size:12px">${esc(l.sku ?? "—")}</td>
+      <td style="padding:7px 8px;border-bottom:1px solid #eee">${esc(l.itemTitle)}</td>
+      <td style="padding:7px 8px;border-bottom:1px solid #eee;text-align:center">${l.quantity}</td>
+      <td style="padding:7px 8px;border-bottom:1px solid #eee;text-align:right">${money(l.amount)}</td>
+      <td style="padding:7px 8px;border-bottom:1px solid #eee;text-align:center;color:#999">☐</td>
+    </tr>`,
+    )
+    .join("");
+  const html = `<div style="font-family:Arial,Helvetica,sans-serif;max-width:680px;color:#1a1a1a">
+    <div style="display:flex;justify-content:space-between;align-items:baseline">
+      <h2 style="margin:0;color:#e5533c">Kit Up — Campaign reconciliation</h2>
+      <div style="text-align:right;font-size:13px;color:#555">${dfull}<br>Report ${esc(r.reportRef)}</div>
+    </div>
+    <p style="font-size:14px;color:#555;margin:6px 0 0">${esc(r.campaignTitle)} · closed: ${esc(r.reason)}</p>
+    <div style="margin:14px 0;padding:12px 14px;background:#f7f7f5;border-radius:8px;font-size:14px;line-height:1.5">
+      <div style="font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:#888">Deliver to</div>
+      <div style="font-weight:bold">${esc(r.schoolName ?? "—")}</div>
+      <div>${esc(r.deliveryAddress ?? "(no delivery address on file)")}</div>
+      <div>ABN: ${esc(r.abn ?? "—")}${r.abnEntityName ? ` <span style="color:#555">(${esc(r.abnEntityName)})</span>` : ""}</div>
+      <div style="font-size:13px;margin-top:4px;color:${r.deliveryConfirmed ? "#2e7d32" : "#b26a00"}">${esc(deliveryNote)}</div>
+    </div>
+    <p style="font-size:14px;color:#555;margin:0 0 8px">Items funded ${r.itemsFunded}/${r.itemsTotal} · ${r.donationCount} donations · total ${money(r.total)}</p>
+    <table style="border-collapse:collapse;width:100%;font-size:14px">
+      <thead><tr style="text-align:left;color:#555;font-size:12px;text-transform:uppercase">
+        <th style="padding:7px 8px">Funded</th><th style="padding:7px 8px">Invoice</th>
+        <th style="padding:7px 8px">SKU</th><th style="padding:7px 8px">Item</th>
+        <th style="padding:7px 8px;text-align:center">Qty</th>
+        <th style="padding:7px 8px;text-align:right">Amount</th>
+        <th style="padding:7px 8px;text-align:center">Dispatched</th>
+      </tr></thead>
+      <tbody>${htmlRows}</tbody>
+      <tfoot><tr>
+        <td colspan="5" style="padding:10px 8px;text-align:right;font-weight:bold">Total funded</td>
+        <td style="padding:10px 8px;text-align:right;font-weight:bold">${money(r.total)}</td><td></td>
+      </tr></tfoot>
+    </table>
+    <p style="font-size:13px;color:#555">Tick each line as it's dispatched. Each row references the donor invoice it was funded under, for reconciliation against payments received.</p>
+    <p style="font-size:12px;color:#999">— Kit Up / ASF admin</p>
+  </div>`;
+
+  return sendAdminEmail(subject, text, html);
+}
+
 export interface FundedItem {
   title: string;
   quantity: number;
