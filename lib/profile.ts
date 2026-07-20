@@ -15,7 +15,7 @@ export const PROFILE_EDIT_READY = true;
  * confirmation flag (the delivery address itself, schools.address, works either
  * way since that column already exists).
  */
-export const DELIVERY_CONFIRM_READY = false;
+export const DELIVERY_CONFIRM_READY = true;
 
 /** How long an email-verified edit window stays open. */
 export const UNLOCK_WINDOW_MS = 30 * 60 * 1000; // 30 min
