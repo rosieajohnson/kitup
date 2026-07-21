@@ -7,7 +7,7 @@ import { notifyAdminReconciliation } from "@/lib/notify";
  * applied — flip to true afterwards. Until then reconcileCampaign() no-ops so
  * nothing reads/writes campaigns.reconciled_at before it exists.
  */
-export const RECONCILE_READY = false;
+export const RECONCILE_READY = true;
 
 function invoiceRef(sessionId: string | null): string {
   return "KU-" + (sessionId ?? "").slice(-10).toUpperCase();
