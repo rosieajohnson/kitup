@@ -168,6 +168,7 @@ export default async function CampaignPage({ params }: Params) {
                   item={item}
                   mode={fundMode}
                   campaignTitle={campaign.title}
+                  schoolName={campaign.school.name}
                   closed={closed}
                 />
               ))}

@@ -1,11 +1,21 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { X, Minus, Plus, Trash2, Loader2, ShoppingCart, Check } from "lucide-react";
+import {
+  X,
+  Minus,
+  Plus,
+  Trash2,
+  Loader2,
+  ShoppingCart,
+  Check,
+  ChevronDown,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { money, moneyExact } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useCart } from "@/components/cart/cart-context";
+import { computeFees, feeCopy, feePct } from "@/lib/fees";
 import {
   createCheckoutSession,
   lookupDonorEmail,
@@ -38,6 +48,18 @@ export function CartDrawer() {
   const [password, setPassword] = useState("");
   const [emailStatus, setEmailStatus] = useState<EmailStatus>("idle");
   const [anonymous, setAnonymous] = useState(false);
+  // Fundraising-costs fee (shown only here at checkout; donor can opt out).
+  const [coverCosts, setCoverCosts] = useState(true);
+  const [feeOpen, setFeeOpen] = useState(false);
+
+  const fee = computeFees(total);
+  const grandTotal = total + (coverCosts ? fee.total : 0);
+  const schoolNames = Array.from(
+    new Set(lines.map((l) => l.schoolName).filter(Boolean)),
+  ) as string[];
+  const schoolLabel =
+    schoolNames.length === 1 ? schoolNames[0] : "the schools you're supporting";
+  const copy = feeCopy(schoolLabel);
 
   // Live-check whether the entered email already has an account.
   useEffect(() => {
@@ -96,6 +118,7 @@ export function CartDrawer() {
         })),
         guest,
         anonymous,
+        coverCosts,
       );
       if (result.error) setError(result.error);
       else if (result.url) window.location.href = result.url;
@@ -211,11 +234,88 @@ export function CartDrawer() {
 
         {lines.length > 0 && (
           <footer className="border-t border-line px-5 py-4">
-            <div className="mb-3 flex items-center justify-between">
-              <span className="text-sm text-ink-soft">Total</span>
-              <span className="font-display text-xl font-bold text-ink tabular-nums">
-                {money(total)}
-              </span>
+            <div className="mb-3 space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-ink-soft">Donation</span>
+                <span className="tabular-nums text-ink">{money(total)}</span>
+              </div>
+
+              {/* Help cover our fundraising costs — expandable breakdown */}
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setFeeOpen((o) => !o)}
+                  aria-expanded={feeOpen}
+                  className="flex w-full items-center justify-between text-sm"
+                >
+                  <span className="inline-flex items-center gap-1 text-ink-soft">
+                    Help cover our fundraising costs
+                    <ChevronDown
+                      className={cn(
+                        "h-4 w-4 transition-transform",
+                        feeOpen && "rotate-180",
+                      )}
+                      aria-hidden
+                    />
+                  </span>
+                  <span
+                    className={cn(
+                      "tabular-nums",
+                      coverCosts ? "text-ink" : "text-ink-faint line-through",
+                    )}
+                  >
+                    {coverCosts ? `+${moneyExact(fee.total)}` : moneyExact(0)}
+                  </span>
+                </button>
+
+                {feeOpen && (
+                  <div className="mt-2 space-y-3 rounded-lg border border-line bg-surface p-3 text-xs">
+                    <div>
+                      <div className="flex items-baseline justify-between font-medium text-ink">
+                        <span>
+                          {copy.platformCosts.label} ({feePct(copy.platformCosts.rate)})
+                        </span>
+                        <span className="tabular-nums">
+                          {moneyExact(fee.platformCosts)}
+                        </span>
+                      </div>
+                      <p className="mt-0.5 leading-relaxed text-ink-soft">
+                        {copy.platformCosts.description}
+                      </p>
+                    </div>
+                    <div>
+                      <div className="flex items-baseline justify-between font-medium text-ink">
+                        <span>
+                          {copy.processing.label} ({feePct(copy.processing.rate)})
+                        </span>
+                        <span className="tabular-nums">
+                          {moneyExact(fee.processing)}
+                        </span>
+                      </div>
+                      <p className="mt-0.5 leading-relaxed text-ink-soft">
+                        {copy.processing.description}
+                      </p>
+                    </div>
+                    <label className="flex items-start gap-2 border-t border-line pt-2 text-ink-soft">
+                      <input
+                        type="checkbox"
+                        checked={!coverCosts}
+                        onChange={(e) => setCoverCosts(!e.target.checked)}
+                        className="mt-0.5 h-4 w-4 rounded border-line-strong text-coral focus:ring-coral/30"
+                      />
+                      I&apos;d prefer not to contribute to these costs — put 100%
+                      of my donation toward the items.
+                    </label>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center justify-between border-t border-line pt-2">
+                <span className="text-sm font-semibold text-ink">Total</span>
+                <span className="font-display text-xl font-bold text-ink tabular-nums">
+                  {money(grandTotal)}
+                </span>
+              </div>
             </div>
             {!checkoutEnabled && (
               <p className="mb-2 text-xs text-ink-faint">
@@ -308,7 +408,7 @@ export function CartDrawer() {
               {pending && (
                 <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
               )}
-              {pending ? "Redirecting…" : `Pay ${money(total)}`}
+              {pending ? "Redirecting…" : `Pay ${money(grandTotal)}`}
             </Button>
             {error && (
               <p

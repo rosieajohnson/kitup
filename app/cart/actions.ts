@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { getStripe, isStripeConfigured } from "@/lib/stripe";
+import { computeFees } from "@/lib/fees";
 
 export interface CartLineInput {
   itemId: string;
@@ -35,6 +36,7 @@ export async function createCheckoutSession(
   cart: CartLineInput[],
   guest?: GuestInput,
   anonymous = false,
+  coverCosts = true,
 ): Promise<{ error?: string; url?: string }> {
   if (!isSupabaseConfigured()) return { error: "Funding needs Supabase connected." };
   if (!isStripeConfigured()) return { error: "Payments aren't set up yet." };
@@ -184,6 +186,25 @@ export async function createCheckoutSession(
     });
   }
   if (lineItems.length === 0) return { error: "Nothing to pay for." };
+
+  // Optional "Help cover our fundraising costs" fee (donor can opt out at
+  // checkout). Recomputed here from the server-priced donation total, and added
+  // as its own Stripe line item — deliberately NOT in `mapping`, so it is never
+  // recorded as item funding or shown in the school's invoice.
+  if (coverCosts) {
+    const donation = mapping.reduce((sum, m) => sum + m.a, 0);
+    const fee = computeFees(donation);
+    if (fee.total > 0) {
+      lineItems.push({
+        quantity: 1,
+        price_data: {
+          currency: "aud",
+          product_data: { name: "Help cover our fundraising costs" },
+          unit_amount: Math.round(fee.total * 100),
+        },
+      });
+    }
+  }
 
   const cartJson = JSON.stringify(mapping);
   const metadata: Record<string, string> = {

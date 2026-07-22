@@ -13,6 +13,8 @@ export interface CartLine {
   itemId: string;
   campaignId: string;
   campaignTitle: string;
+  /** Owning school's name — used in the checkout fee breakdown copy. */
+  schoolName?: string;
   title: string;
   unitCost: number;
   quantity: number;

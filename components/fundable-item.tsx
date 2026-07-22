@@ -23,11 +23,13 @@ export function FundableItem({
   item,
   mode,
   campaignTitle,
+  schoolName,
   closed = false,
 }: {
   item: ItemWithFunding;
   mode: FundMode;
   campaignTitle: string;
+  schoolName?: string;
   closed?: boolean;
 }) {
   const { addLine, open } = useCart();
@@ -46,6 +48,7 @@ export function FundableItem({
       itemId: item.id,
       campaignId: item.campaign_id,
       campaignTitle,
+      schoolName,
       title: item.title,
       unitCost: unit,
       quantity: qty,
