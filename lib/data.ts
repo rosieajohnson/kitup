@@ -160,6 +160,9 @@ export async function getCampaigns(): Promise<CampaignSummary[]> {
          items ( id )`,
       )
       .eq("status", "live")
+      // Hide closed campaigns from the public browse — matches the funding gate
+      // (a campaign stops taking money once its deadline passes).
+      .gte("deadline", new Date().toISOString())
       .order("deadline", { ascending: true }),
   );
 
