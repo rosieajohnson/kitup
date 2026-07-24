@@ -35,6 +35,7 @@ export function SiteFooter() {
           links={[
             ["Our mission", "/about#mission"],
             ["Trust & safety", "/about#trust"],
+            ["Privacy policy", "/privacy"],
             ["Contact", "/contact"],
           ]}
         />
