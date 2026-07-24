@@ -1,7 +1,11 @@
 import "server-only";
 import type Stripe from "stripe";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { notifyAdminInvoice, notifyAdminCampaignFunded } from "@/lib/notify";
+import {
+  notifyAdminInvoice,
+  notifyAdminCampaignFunded,
+  notifyAdminDonationReceipt,
+} from "@/lib/notify";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { lookupAbn } from "@/lib/abr";
 import { DELIVERY_CONFIRM_READY } from "@/lib/profile";
@@ -197,6 +201,36 @@ async function notifyAdmin(
       (linesBySchool.get(sid) ?? linesBySchool.set(sid, []).get(sid)!).push(l);
     }
     const dateISO = new Date().toISOString();
+
+    // Donation-received receipt to the admin (once per donation): donor
+    // identity + everything they funded + total. Separate from the per-school
+    // order invoice below.
+    const donationTotal = lines.reduce((s, l) => s + l.a, 0);
+    const totalCharged = (session.amount_total ?? 0) / 100;
+    const feeTotal = Math.round((totalCharged - donationTotal) * 100) / 100;
+    await notifyAdminDonationReceipt({
+      donorName: payerName,
+      donorEmail: payerEmail,
+      anonymous,
+      sessionId: session.id,
+      dateISO,
+      lines: lines.map((l) => {
+        const it = itemById.get(l.i);
+        const product = Array.isArray(it?.product) ? it?.product[0] : it?.product;
+        return {
+          campaignTitle: campById.get(l.c)?.title ?? "a campaign",
+          itemTitle: it?.title ?? "an item",
+          sku: product?.hart_sku ?? null,
+          quantity: l.q,
+          unitPrice: l.q > 0 ? l.a / l.q : l.a,
+          amount: l.a,
+        };
+      }),
+      donationTotal,
+      feeTotal: feeTotal > 0.005 ? feeTotal : null,
+      totalCharged,
+    });
+
     for (const [sid, sLines] of linesBySchool) {
       const school = schoolById.get(sid);
       const info = schoolInfo.get(sid) ?? {

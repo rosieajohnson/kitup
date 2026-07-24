@@ -195,6 +195,115 @@ deliver to the school address above.
   return sendAdminEmail(subject, text, html);
 }
 
+export interface DonationReceiptLine {
+  campaignTitle: string;
+  itemTitle: string;
+  sku: string | null;
+  quantity: number;
+  unitPrice: number;
+  amount: number;
+}
+
+export interface DonationReceipt {
+  donorName: string | null;
+  donorEmail: string | null;
+  anonymous: boolean;
+  sessionId: string;
+  dateISO: string;
+  lines: DonationReceiptLine[];
+  donationTotal: number;
+  /** Optional "Help cover our fundraising costs" fee, if the donor added it. */
+  feeTotal?: number | null;
+  totalCharged?: number | null;
+}
+
+/**
+ * "Donation received" receipt to the admin — donor identity + what they funded
+ * + total donated. Sent once per donation, separate from the per-school order
+ * invoice (which is addressed to the school for dispatch).
+ */
+export async function notifyAdminDonationReceipt(
+  r: DonationReceipt,
+): Promise<boolean> {
+  const date = new Date(r.dateISO).toLocaleDateString("en-AU", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+  const ref = r.sessionId.slice(-10).toUpperCase();
+  const donor = r.donorName || "(name not given)";
+  const emailAddr = r.donorEmail || "(email not given)";
+  const subject = `[Kit Up] Donation received — ${money(r.donationTotal)} from ${donor}`;
+  const hasFee = typeof r.feeTotal === "number" && r.feeTotal > 0.005;
+
+  const pad = (s: string, n: number) => (s + " ".repeat(n)).slice(0, n);
+  const rows = r.lines
+    .map(
+      (l) =>
+        `  • ${l.campaignTitle} — ${l.itemTitle}${l.sku ? ` [${l.sku}]` : ""}: ${l.quantity} × ${money(l.unitPrice)} = ${money(l.amount)}`,
+    )
+    .join("\n");
+  const text = `KIT UP — DONATION RECEIVED
+${date} · Ref KU-${ref}
+
+Donor:  ${donor}${r.anonymous ? "  (anonymous to public)" : ""}
+Email:  ${emailAddr}
+
+Items funded:
+${rows}
+
+Total donated: ${money(r.donationTotal)}${
+    hasFee
+      ? `\nFundraising costs: ${money(r.feeTotal as number)}\nTotal charged: ${money(r.totalCharged ?? r.donationTotal + (r.feeTotal as number))}`
+      : ""
+  }
+
+Stripe session: ${r.sessionId}
+
+— You're receiving this as the Kit Up / ASF admin.`;
+
+  const htmlRows = r.lines
+    .map(
+      (l) => `<tr>
+      <td style="padding:6px 10px;border-bottom:1px solid #eee">${esc(l.campaignTitle)} — ${esc(l.itemTitle)}${l.sku ? ` <span style="color:#888;font-family:monospace;font-size:12px">[${esc(l.sku)}]</span>` : ""}</td>
+      <td style="padding:6px 10px;border-bottom:1px solid #eee;text-align:center">${l.quantity}</td>
+      <td style="padding:6px 10px;border-bottom:1px solid #eee;text-align:right">${money(l.amount)}</td>
+    </tr>`,
+    )
+    .join("");
+  const html = `<div style="font-family:Arial,Helvetica,sans-serif;max-width:640px;color:#1a1a1a">
+    <div style="display:flex;justify-content:space-between;align-items:baseline">
+      <h2 style="margin:0;color:#e5533c">Kit Up — Donation received</h2>
+      <div style="text-align:right;font-size:13px;color:#555">${date}<br>Ref KU-${ref}</div>
+    </div>
+    <div style="margin:14px 0;padding:12px 14px;background:#f7f7f5;border-radius:8px;font-size:14px;line-height:1.5">
+      <div><span style="color:#888">Donor:</span> <strong>${esc(donor)}</strong>${r.anonymous ? ' <span style="color:#888">(anonymous to public)</span>' : ""}</div>
+      <div><span style="color:#888">Email:</span> ${esc(emailAddr)}</div>
+    </div>
+    <table style="border-collapse:collapse;width:100%;font-size:14px">
+      <thead><tr style="text-align:left;color:#555;font-size:12px;text-transform:uppercase">
+        <th style="padding:6px 10px">Item</th>
+        <th style="padding:6px 10px;text-align:center">Qty</th>
+        <th style="padding:6px 10px;text-align:right">Amount</th>
+      </tr></thead>
+      <tbody>${htmlRows}</tbody>
+      <tfoot>
+        <tr><td colspan="2" style="padding:8px 10px;text-align:right;font-weight:bold">Total donated</td><td style="padding:8px 10px;text-align:right;font-weight:bold">${money(r.donationTotal)}</td></tr>
+        ${
+          hasFee
+            ? `<tr><td colspan="2" style="padding:2px 10px;text-align:right;color:#555">Fundraising costs</td><td style="padding:2px 10px;text-align:right;color:#555">${money(r.feeTotal as number)}</td></tr>
+        <tr><td colspan="2" style="padding:2px 10px;text-align:right;color:#555">Total charged</td><td style="padding:2px 10px;text-align:right;color:#555">${money(r.totalCharged ?? r.donationTotal + (r.feeTotal as number))}</td></tr>`
+            : ""
+        }
+      </tfoot>
+    </table>
+    <p style="font-size:13px;color:#555">Stripe session <code>${esc(r.sessionId)}</code></p>
+    <p style="font-size:12px;color:#999">— You're receiving this as the Kit Up / ASF admin.</p>
+  </div>`;
+
+  return sendAdminEmail(subject, text, html);
+}
+
 export interface ReconcileLine {
   dateISO: string;
   invoiceRef: string;
