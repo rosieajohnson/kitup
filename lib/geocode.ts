@@ -6,7 +6,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  * until the column exists and the registry is populated — flip to true
  * afterwards so sign-up stamps schools.remoteness.
  */
-export const REMOTENESS_READY = false;
+export const REMOTENESS_READY = true;
 
 /**
  * Turn a school's authoritative ACARA coordinates into a deliverable street
