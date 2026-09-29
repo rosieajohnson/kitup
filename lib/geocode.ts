@@ -2,6 +2,13 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 /**
+ * ACARA remoteness (migration 0029 + `npm run import:remoteness`). Gated OFF
+ * until the column exists and the registry is populated — flip to true
+ * afterwards so sign-up stamps schools.remoteness.
+ */
+export const REMOTENESS_READY = false;
+
+/**
  * Turn a school's authoritative ACARA coordinates into a deliverable street
  * address. ACARA only stores suburb/state/postcode, but it DOES store the
  * school's lat/long — reverse-geocoding those (via OpenStreetMap Nominatim)
@@ -44,19 +51,30 @@ const norm = (s: string) =>
  * return its coordinates. Requires a client that can read school_registry
  * (service-role).
  */
-export async function acaraCoordsForSchool(
+interface RegistryRow {
+  official_name: string;
+  latitude: number | null;
+  longitude: number | null;
+  remoteness?: string | null;
+}
+
+export async function acaraMatchForSchool(
   admin: SupabaseClient,
   school: { school: string; postcode: string | null },
-): Promise<{ lat: number; lon: number } | null> {
+): Promise<RegistryRow | null> {
   if (!school.postcode) return null;
-  const { data } = await admin
+  const sel =
+    "official_name, latitude, longitude" +
+    (REMOTENESS_READY ? ", remoteness" : "");
+  const { data: raw } = await admin
     .from("school_registry")
-    .select("official_name, latitude, longitude")
+    .select(sel)
     .eq("postcode", school.postcode);
-  if (!data || data.length === 0) return null;
+  const data = (raw ?? []) as unknown as RegistryRow[];
+  if (data.length === 0) return null;
 
   const target = new Set(norm(school.school));
-  let best: { latitude: number | null; longitude: number | null } | null = null;
+  let best: RegistryRow | null = null;
   let bestScore = -1;
   for (const r of data) {
     const toks = new Set(norm(r.official_name));
@@ -68,8 +86,7 @@ export async function acaraCoordsForSchool(
       best = r;
     }
   }
-  if (!best || best.latitude == null || best.longitude == null) return null;
-  return { lat: best.latitude, lon: best.longitude };
+  return best;
 }
 
 /**
@@ -83,19 +100,37 @@ export async function fillSchoolDeliveryAddress(
   schoolId: string,
   opts: { overwrite?: boolean } = {},
 ): Promise<string | null> {
-  const { data: s } = await admin
+  const sel =
+    "school, postcode, address" + (REMOTENESS_READY ? ", remoteness" : "");
+  const { data: sRaw } = await admin
     .from("schools")
-    .select("school, postcode, address")
+    .select(sel)
     .eq("id", schoolId)
     .single();
+  const s = sRaw as unknown as {
+    school: string;
+    postcode: string | null;
+    address: string | null;
+    remoteness?: string | null;
+  } | null;
   if (!s) return null;
-  if (s.address && !opts.overwrite) return s.address;
 
-  const coords = await acaraCoordsForSchool(admin, s);
-  if (!coords) return s.address ?? null;
-  const street = await reverseGeocodeStreet(coords.lat, coords.lon);
-  if (!street) return s.address ?? null;
+  const match = await acaraMatchForSchool(admin, s);
+  const update: Record<string, unknown> = {};
 
-  await admin.from("schools").update({ address: street }).eq("id", schoolId);
-  return street;
+  // Delivery street: reverse-geocode the ACARA coordinates (fill blank only,
+  // unless overwriting, so a school's confirmed address is never clobbered).
+  if ((!s.address || opts.overwrite) && match?.latitude != null && match.longitude != null) {
+    const street = await reverseGeocodeStreet(match.latitude, match.longitude);
+    if (street) update.address = street;
+  }
+  // Remoteness: stamp from the matched registry row if not already set.
+  if (REMOTENESS_READY && match?.remoteness && !s.remoteness) {
+    update.remoteness = match.remoteness;
+  }
+
+  if (Object.keys(update).length) {
+    await admin.from("schools").update(update).eq("id", schoolId);
+  }
+  return (update.address as string) ?? s.address ?? null;
 }

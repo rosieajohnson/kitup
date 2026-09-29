@@ -54,13 +54,15 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const { data: schools, error } = await supabase
   .from("schools")
-  .select("id, school, postcode, address");
+  .select("id, school, postcode, address, remoteness");
 if (error) {
   console.error("Failed to read schools:", error.message);
   process.exit(1);
 }
 
-const todo = schools.filter((s) => (FORCE || !s.address) && s.postcode);
+const todo = schools.filter(
+  (s) => (FORCE || !s.address || !s.remoteness) && s.postcode,
+);
 console.log(
   `schools: ${schools.length}, to geocode: ${todo.length}${FORCE ? " (force)" : ""}`,
 );
@@ -70,7 +72,7 @@ let ok = 0,
 for (const s of todo) {
   const { data: reg } = await supabase
     .from("school_registry")
-    .select("official_name, latitude, longitude")
+    .select("official_name, latitude, longitude, remoteness")
     .eq("postcode", s.postcode);
   if (!reg || reg.length === 0) {
     miss++;
@@ -90,28 +92,44 @@ for (const s of todo) {
       best = r;
     }
   }
-  if (!best || best.latitude == null) {
+  if (!best) {
     miss++;
     continue;
   }
-  const street = await reverseGeocode(best.latitude, best.longitude);
-  if (!street) {
-    miss++;
-    console.log(`  ✗ ${s.school}: no street from geocode`);
-    await sleep(1100);
-    continue;
+
+  const update = {};
+  const notes = [];
+  // Remoteness — no network needed, just from the matched registry row.
+  if (best.remoteness && (FORCE || !s.remoteness)) {
+    update.remoteness = best.remoteness;
+    notes.push(best.remoteness);
   }
-  const { error: upErr } = await supabase
-    .from("schools")
-    .update({ address: street })
-    .eq("id", s.id);
-  if (upErr) {
+  // Delivery street — reverse-geocode the ACARA coordinates (rate-limited).
+  let geocoded = false;
+  if ((FORCE || !s.address) && best.latitude != null) {
+    const street = await reverseGeocode(best.latitude, best.longitude);
+    geocoded = true;
+    if (street) {
+      update.address = street;
+      notes.push(street);
+    }
+  }
+
+  if (Object.keys(update).length === 0) {
     miss++;
-    console.error(`  ✗ ${s.school}: ${upErr.message}`);
   } else {
-    ok++;
-    console.log(`  ✓ ${s.school}: ${street}`);
+    const { error: upErr } = await supabase
+      .from("schools")
+      .update(update)
+      .eq("id", s.id);
+    if (upErr) {
+      miss++;
+      console.error(`  ✗ ${s.school}: ${upErr.message}`);
+    } else {
+      ok++;
+      console.log(`  ✓ ${s.school}: ${notes.join(" · ")}`);
+    }
   }
-  await sleep(1100); // Nominatim: ~1 req/sec
+  if (geocoded) await sleep(1100); // Nominatim: ~1 req/sec
 }
 console.log(`\nDone. filled ${ok}, skipped/failed ${miss}.`);
