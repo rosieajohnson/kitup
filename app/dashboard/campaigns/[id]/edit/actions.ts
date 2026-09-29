@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
+import { impactColumns, type ImpactValues } from "@/lib/campaign-fields";
 
 export interface EditItemInput {
   id?: string; // existing item id; absent = new item
@@ -19,6 +20,7 @@ export interface UpdateCampaignInput {
   description: string;
   deadline: string;
   cover_image: string | null;
+  impact?: ImpactValues;
   items: EditItemInput[];
 }
 
@@ -130,6 +132,7 @@ export async function updateCampaign(
       cover_image: input.cover_image || null,
       funding_goal,
       deadline: deadline.toISOString(),
+      ...impactColumns(input.impact),
     })
     .eq("id", input.campaignId);
   if (campaignError) return { error: campaignError.message };

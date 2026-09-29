@@ -4,6 +4,11 @@ import { ArrowLeft } from "lucide-react";
 import { getCampaign, getCatalogue } from "@/lib/data";
 import { getViewer } from "@/lib/auth";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
+import { createClient } from "@/lib/supabase/server";
+import {
+  CAMPAIGN_IMPACT_READY,
+  type ImpactValues,
+} from "@/lib/campaign-fields";
 import { CampaignForm, type CampaignFormInitial } from "@/components/campaign-form";
 import { DeleteCampaignButton } from "@/components/delete-campaign-button";
 
@@ -25,12 +30,36 @@ export default async function EditCampaignPage({ params }: Params) {
 
   const catalogue = await getCatalogue();
 
+  // Prefill the "need & impact" fields (once migration 0030 is live).
+  let impact: ImpactValues | undefined;
+  if (CAMPAIGN_IMPACT_READY) {
+    const supabase = await createClient();
+    const { data } = await supabase
+      .from("campaigns")
+      .select(
+        "students_reached, barrier, students_missing_out, usage_context, usage_frequency, participation_goal",
+      )
+      .eq("id", id)
+      .single();
+    if (data) {
+      impact = {
+        students_reached: data.students_reached ?? null,
+        barrier: data.barrier ?? "",
+        students_missing_out: data.students_missing_out ?? "",
+        usage_context: data.usage_context ?? "",
+        usage_frequency: data.usage_frequency ?? "",
+        participation_goal: data.participation_goal ?? "",
+      };
+    }
+  }
+
   const initial: CampaignFormInitial = {
     campaignId: campaign.id,
     title: campaign.title,
     description: campaign.description,
     deadline: campaign.deadline.slice(0, 10),
     coverImage: campaign.cover_image,
+    impact,
     items: campaign.items.map((it) => ({
       id: it.id,
       hart_product_id: it.hart_product_id,

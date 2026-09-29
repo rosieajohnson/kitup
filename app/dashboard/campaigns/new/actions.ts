@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
+import { impactColumns, type ImpactValues } from "@/lib/campaign-fields";
 
 export interface NewItemInput {
   hart_product_id: string;
@@ -17,6 +18,7 @@ export interface CreateCampaignInput {
   description: string;
   deadline: string; // ISO date (yyyy-mm-dd) from the form
   cover_image: string | null;
+  impact?: ImpactValues;
   items: NewItemInput[];
 }
 
@@ -81,6 +83,7 @@ export async function createCampaign(
       funding_goal,
       deadline: deadline.toISOString(),
       school_id: user.id,
+      ...impactColumns(input.impact),
     })
     .select("id")
     .single();

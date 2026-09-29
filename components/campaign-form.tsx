@@ -9,6 +9,12 @@ import type { HartSportProduct } from "@/lib/types";
 import { createCampaign } from "@/app/dashboard/campaigns/new/actions";
 import { updateCampaign } from "@/app/dashboard/campaigns/[id]/edit/actions";
 import { CoverImagePicker } from "@/components/cover-image-picker";
+import {
+  CAMPAIGN_IMPACT_READY,
+  EMPTY_IMPACT,
+  IMPACT_SELECTS,
+  type ImpactValues,
+} from "@/lib/campaign-fields";
 
 export interface CampaignFormInitial {
   campaignId: string;
@@ -25,6 +31,7 @@ export interface CampaignFormInitial {
     quantity_needed: number;
     quantity_funded: number;
   }[];
+  impact?: ImpactValues;
 }
 
 interface DraftItem {
@@ -57,6 +64,10 @@ export function CampaignForm({
   const [title, setTitle] = useState(initial?.title ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
   const [deadline, setDeadline] = useState(initial?.deadline ?? "");
+  const [impact, setImpact] = useState<ImpactValues>({
+    ...EMPTY_IMPACT,
+    ...(initial?.impact ?? {}),
+  });
   const [coverImage, setCoverImage] = useState<string | null>(
     initial?.coverImage ?? null,
   );
@@ -157,6 +168,7 @@ export function CampaignForm({
             description,
             deadline,
             cover_image: coverImage,
+            impact,
             items: items.map((it) => ({
               id: it.id,
               hart_product_id: it.hart_product_id,
@@ -170,6 +182,7 @@ export function CampaignForm({
             description,
             deadline,
             cover_image: coverImage,
+            impact,
             items: items.map((it) => ({
               hart_product_id: it.hart_product_id,
               title: it.title,
@@ -245,6 +258,63 @@ export function CampaignForm({
           <CoverImagePicker value={coverImage} onChange={setCoverImage} />
         </div>
       </section>
+
+      {CAMPAIGN_IMPACT_READY && (
+        <section className="rounded-xl border border-line bg-surface p-6 shadow-card">
+          <h2 className="font-display text-lg font-bold text-ink">
+            The need &amp; impact
+          </h2>
+          <p className="mt-1 text-sm text-ink-soft">
+            Optional — this helps the Australian Sports Foundation understand the
+            need behind your campaign. Shared with ASF; not shown publicly.
+          </p>
+          <div className="mt-4 space-y-4">
+            <div className="max-w-xs">
+              <label htmlFor="students_reached" className={labelCls}>
+                How many students will this reach?
+              </label>
+              <input
+                id="students_reached"
+                type="number"
+                min={0}
+                className={inputCls}
+                value={impact.students_reached ?? ""}
+                onChange={(e) =>
+                  setImpact((v) => ({
+                    ...v,
+                    students_reached: e.target.value
+                      ? Math.max(0, Math.floor(Number(e.target.value)))
+                      : null,
+                  }))
+                }
+                placeholder="e.g. 120"
+              />
+            </div>
+            {IMPACT_SELECTS.map((f) => (
+              <div key={f.key}>
+                <label htmlFor={f.key} className={labelCls}>
+                  {f.label}
+                </label>
+                <select
+                  id={f.key}
+                  className={inputCls}
+                  value={impact[f.key]}
+                  onChange={(e) =>
+                    setImpact((v) => ({ ...v, [f.key]: e.target.value }))
+                  }
+                >
+                  <option value="">Select…</option>
+                  {f.options.map((o) => (
+                    <option key={o} value={o}>
+                      {o}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* ---- Items from the catalogue ---- */}
       <section className="rounded-xl border border-line bg-surface p-6 shadow-card">
