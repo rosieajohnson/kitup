@@ -5,7 +5,7 @@
  * Plain module (imported by the client form AND server actions).
  * >>> After applying migration 0030, flip CAMPAIGN_IMPACT_READY -> true. <<<
  */
-export const CAMPAIGN_IMPACT_READY = false;
+export const CAMPAIGN_IMPACT_READY = true;
 
 export interface ImpactValues {
   students_reached: number | null;
