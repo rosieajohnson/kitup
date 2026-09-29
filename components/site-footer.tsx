@@ -36,6 +36,7 @@ export function SiteFooter() {
             ["Our mission", "/about#mission"],
             ["Trust & safety", "/about#trust"],
             ["Privacy policy", "/privacy"],
+            ["Terms & conditions", "/terms"],
             ["Contact", "/contact"],
           ]}
         />
