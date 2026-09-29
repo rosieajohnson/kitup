@@ -407,26 +407,42 @@ export function CartDrawer() {
               to the public.
             </label>
 
-            <label className="mb-3 flex items-start gap-2 text-xs text-ink-soft">
-              <input
-                type="checkbox"
-                checked={agreedTerms}
-                onChange={(e) => setAgreedTerms(e.target.checked)}
-                className="mt-0.5 h-4 w-4 rounded border-line-strong text-coral focus:ring-coral/30"
-              />
-              <span>
-                I agree to the{" "}
-                <a
-                  href="/terms"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="font-semibold text-coral underline hover:text-coral-dark"
-                >
-                  Terms &amp; Conditions
-                </a>
-                .
-              </span>
-            </label>
+            <div className="mb-3 rounded-lg border border-line bg-surface p-3 text-xs text-ink-soft">
+              <p className="mb-2">
+                Through our partnership with the Australian Sports Foundation,
+                any donation of $2 or more is tax deductible.
+              </p>
+              <label className="flex items-start gap-2">
+                <input
+                  type="checkbox"
+                  checked={agreedTerms}
+                  onChange={(e) => setAgreedTerms(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-line-strong text-coral focus:ring-coral/30"
+                />
+                <span>
+                  By donating today, your donation is made unconditionally to the
+                  Australian Sports Foundation (ASF) and you agree to the ASF{" "}
+                  <a
+                    href="/terms"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-semibold text-coral underline hover:text-coral-dark"
+                  >
+                    Terms &amp; Conditions
+                  </a>{" "}
+                  and the ASF{" "}
+                  <a
+                    href="https://asf.org.au/privacy-policy"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-semibold text-coral underline hover:text-coral-dark"
+                  >
+                    Privacy Policy
+                  </a>
+                  .
+                </span>
+              </label>
+            </div>
 
             <Button
               size="lg"
