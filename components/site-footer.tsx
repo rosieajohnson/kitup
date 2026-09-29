@@ -37,6 +37,7 @@ export function SiteFooter() {
             ["Trust & safety", "/about#trust"],
             ["Privacy policy", "/privacy"],
             ["Terms & conditions", "/terms"],
+            ["Grant agreement", "/grant-agreement"],
             ["Contact", "/contact"],
           ]}
         />

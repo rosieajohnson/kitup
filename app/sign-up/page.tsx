@@ -68,6 +68,8 @@ function SignUpForm() {
   // mismatch (see precheckSchool).
   const [schoolName, setSchoolName] = useState("");
   const [suggestions, setSuggestions] = useState<string[]>([]);
+  // Schools must accept the ASF grant agreement (school <-> ASF) at sign-up.
+  const [agreedGrant, setAgreedGrant] = useState(false);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -122,7 +124,20 @@ function SignUpForm() {
         );
         return;
       }
-      metadata = { role, school, suburb, postcode, abn };
+      if (!agreedGrant) {
+        setError(
+          "Please agree to the Grant Agreement with the Australian Sports Foundation to create a school account.",
+        );
+        return;
+      }
+      metadata = {
+        role,
+        school,
+        suburb,
+        postcode,
+        abn,
+        grant_accepted_at: new Date().toISOString(),
+      };
 
       // Verify the school against ACARA (name + postcode) and the ABN against
       // the ABR BEFORE creating the account — so a wrong postcode/name/ABN is
@@ -343,6 +358,29 @@ function SignUpForm() {
             />
             <PasswordChecklist password={password} className="mt-2" />
           </div>
+
+          {role === "school" && (
+            <label className="flex items-start gap-2 text-sm text-ink-soft">
+              <input
+                type="checkbox"
+                checked={agreedGrant}
+                onChange={(e) => setAgreedGrant(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-line-strong text-coral focus:ring-coral/30"
+              />
+              <span>
+                I have read and agree, on behalf of my school, to the{" "}
+                <a
+                  href="/grant-agreement"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-semibold text-coral underline hover:text-coral-dark"
+                >
+                  Grant Agreement
+                </a>{" "}
+                with the Australian Sports Foundation.
+              </span>
+            </label>
+          )}
 
           {error && (
             <p
