@@ -51,6 +51,8 @@ export function CartDrawer() {
   // Fundraising-costs fee (shown only here at checkout; donor can opt out).
   const [coverCosts, setCoverCosts] = useState(true);
   const [feeOpen, setFeeOpen] = useState(false);
+  // Donors must agree to the (ASF) donation terms before paying.
+  const [agreedTerms, setAgreedTerms] = useState(false);
 
   const fee = computeFees(total);
   const grandTotal = total + (coverCosts ? fee.total : 0);
@@ -109,6 +111,11 @@ export function CartDrawer() {
       };
     }
 
+    if (!agreedTerms) {
+      setError("Please agree to the Terms & Conditions to donate.");
+      return;
+    }
+
     startTransition(async () => {
       const result = await createCheckoutSession(
         lines.map((l) => ({
@@ -119,6 +126,7 @@ export function CartDrawer() {
         guest,
         anonymous,
         coverCosts,
+        agreedTerms,
       );
       if (result.error) setError(result.error);
       else if (result.url) window.location.href = result.url;
@@ -397,6 +405,27 @@ export function CartDrawer() {
               />
               Make my donation anonymous — show my name as &quot;Anonymous&quot;
               to the public.
+            </label>
+
+            <label className="mb-3 flex items-start gap-2 text-xs text-ink-soft">
+              <input
+                type="checkbox"
+                checked={agreedTerms}
+                onChange={(e) => setAgreedTerms(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-line-strong text-coral focus:ring-coral/30"
+              />
+              <span>
+                I agree to the{" "}
+                <a
+                  href="/terms"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-semibold text-coral underline hover:text-coral-dark"
+                >
+                  Terms &amp; Conditions
+                </a>
+                .
+              </span>
             </label>
 
             <Button
