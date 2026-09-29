@@ -5,11 +5,13 @@ import {
   notifyAdminInvoice,
   notifyAdminCampaignFunded,
   notifyAdminDonationReceipt,
+  notifyAdminSchoolProfile,
 } from "@/lib/notify";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { lookupAbn } from "@/lib/abr";
 import { DELIVERY_CONFIRM_READY } from "@/lib/profile";
 import { reconcileCampaign, RECONCILE_READY } from "@/lib/reconcile";
+import { acaraMatchForSchool, DEMOGRAPHICS_READY } from "@/lib/geocode";
 
 interface CartMapLine {
   i: string; // item_id
@@ -132,7 +134,9 @@ async function notifyAdmin(
     const [{ data: camps }, { data: its }] = await Promise.all([
       admin
         .from("campaigns")
-        .select("id, title, school_id")
+        .select(
+          "id, title, school_id, students_reached, barrier, students_missing_out, usage_context, usage_frequency, participation_goal",
+        )
         .in("id", campaignIds),
       admin
         .from("items")
@@ -262,6 +266,65 @@ async function notifyAdmin(
         dateISO,
         lines: invLines,
         total: invLines.reduce((s, x) => s + x.amount, 0),
+      });
+    }
+
+    // 1b) ASF school-profile & impact email — per campaign funded now.
+    for (const cid of campaignIds) {
+      const camp = campById.get(cid);
+      if (!camp) continue;
+      const school = schoolById.get(camp.school_id);
+      const cLines = lines
+        .filter((l) => l.c === cid)
+        .map((l) => ({
+          itemTitle: itemById.get(l.i)?.title ?? "an item",
+          quantity: l.q,
+          amount: l.a,
+        }));
+      if (cLines.length === 0) continue;
+
+      let demographics: Parameters<
+        typeof notifyAdminSchoolProfile
+      >[0]["demographics"] = null;
+      if (DEMOGRAPHICS_READY && school) {
+        try {
+          const m = await acaraMatchForSchool(admin, {
+            school: school.school,
+            postcode: school.postcode,
+          });
+          if (m) {
+            demographics = {
+              remoteness: m.remoteness ?? null,
+              totalEnrolments: m.total_enrolments ?? null,
+              icsea: m.icsea ?? null,
+              icseaPercentile: m.icsea_percentile ?? null,
+              seaBottomQuarter: m.sea_bottom_quarter ?? null,
+              indigenousPct: m.indigenous_pct ?? null,
+              lbotePct: m.lbote_pct ?? null,
+            };
+          }
+        } catch {
+          /* best-effort */
+        }
+      }
+
+      await notifyAdminSchoolProfile({
+        campaignTitle: camp.title ?? "a campaign",
+        schoolName: school?.school ?? "the school",
+        demographics,
+        impact: {
+          studentsReached: camp.students_reached ?? null,
+          barrier: camp.barrier ?? "",
+          studentsMissingOut: camp.students_missing_out ?? "",
+          usageContext: camp.usage_context ?? "",
+          usageFrequency: camp.usage_frequency ?? "",
+          participationGoal: camp.participation_goal ?? "",
+        },
+        lines: cLines,
+        total: cLines.reduce((s, x) => s + x.amount, 0),
+        donorLabel,
+        sessionId: session.id,
+        dateISO,
       });
     }
 

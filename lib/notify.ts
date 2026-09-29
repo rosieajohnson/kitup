@@ -195,6 +195,140 @@ deliver to the school address above.
   return sendAdminEmail(subject, text, html);
 }
 
+export interface SchoolProfileNotice {
+  campaignTitle: string;
+  schoolName: string;
+  demographics: {
+    remoteness?: string | null;
+    totalEnrolments?: number | null;
+    icsea?: number | null;
+    icseaPercentile?: number | null;
+    seaBottomQuarter?: number | null;
+    indigenousPct?: number | null;
+    lbotePct?: number | null;
+  } | null;
+  impact: {
+    studentsReached: number | null;
+    barrier: string;
+    studentsMissingOut: string;
+    usageContext: string;
+    usageFrequency: string;
+    participationGoal: string;
+  } | null;
+  lines: { itemTitle: string; quantity: number; amount: number }[];
+  total: number;
+  donorLabel: string;
+  sessionId: string;
+  dateISO: string;
+}
+
+/**
+ * ASF "school profile & impact" email — per campaign funded in a donation.
+ * Combines the school's ACARA equity markers, the school-provided need/impact
+ * answers, and what this donation funded, so ASF has grant/impact context.
+ */
+export async function notifyAdminSchoolProfile(
+  n: SchoolProfileNotice,
+): Promise<boolean> {
+  const date = new Date(n.dateISO).toLocaleDateString("en-AU", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+  const ref = n.sessionId.slice(-10).toUpperCase();
+  const subject = `[Kit Up] School profile & impact — ${n.schoolName}`;
+  const dash = (v: unknown) =>
+    v === null || v === undefined || v === "" ? "—" : String(v);
+  const pct = (v: number | null | undefined) =>
+    v === null || v === undefined ? "—" : `${v}%`;
+
+  const d = n.demographics;
+  const demoRows: [string, string][] = d
+    ? [
+        ["Remoteness", dash(d.remoteness)],
+        ["Enrolments", dash(d.totalEnrolments)],
+        [
+          "ICSEA",
+          d.icsea
+            ? `${d.icsea}${d.icseaPercentile ? ` (percentile ${d.icseaPercentile})` : ""}`
+            : "—",
+        ],
+        ["Most-disadvantaged quarter (low-SES)", pct(d.seaBottomQuarter)],
+        ["First Nations students", pct(d.indigenousPct)],
+        ["Language background other than English", pct(d.lbotePct)],
+      ]
+    : [];
+
+  const i = n.impact;
+  const impactRows: [string, string][] = i
+    ? [
+        ["Students reached", dash(i.studentsReached)],
+        ["Barrier to self-funding", dash(i.barrier)],
+        ["Who's missing out", dash(i.studentsMissingOut)],
+        ["Where/how used", dash(i.usageContext)],
+        ["How often", dash(i.usageFrequency)],
+        ["Participation goal", dash(i.participationGoal)],
+      ]
+    : [];
+  const hasImpact = impactRows.some(([, v]) => v !== "—");
+
+  const txtRows = (rows: [string, string][]) =>
+    rows.map(([k, v]) => `  ${(k + ":").padEnd(38)} ${v}`).join("\n");
+  const text = `KIT UP — SCHOOL PROFILE & IMPACT
+${date} · Ref KU-${ref}
+
+Campaign: ${n.campaignTitle}
+School:   ${n.schoolName}
+
+SCHOOL PROFILE (ACARA):
+${demoRows.length ? txtRows(demoRows) : "  (not available)"}
+
+THE NEED & IMPACT (school-provided):
+${hasImpact ? txtRows(impactRows) : "  (no impact details provided)"}
+
+FUNDED IN THIS DONATION:
+${n.lines.map((l) => `  • ${l.itemTitle}: ${l.quantity} × = ${money(l.amount)}`).join("\n")}
+  ${"".padEnd(38)} Total: ${money(n.total)}
+
+Donor: ${n.donorLabel}
+Stripe session: ${n.sessionId}
+
+— Kit Up / ASF admin`;
+
+  const htmlTable = (rows: [string, string][]) =>
+    `<table style="border-collapse:collapse;font-size:14px;margin:4px 0 10px">${rows
+      .map(
+        ([k, v]) =>
+          `<tr><td style="padding:3px 12px 3px 0;color:#888">${esc(k)}</td><td style="padding:3px 0;font-weight:${v === "—" ? "400" : "500"}">${esc(v)}</td></tr>`,
+      )
+      .join("")}</table>`;
+  const html = `<div style="font-family:Arial,Helvetica,sans-serif;max-width:640px;color:#1a1a1a">
+    <div style="display:flex;justify-content:space-between;align-items:baseline">
+      <h2 style="margin:0;color:#e5533c">Kit Up — School profile &amp; impact</h2>
+      <div style="text-align:right;font-size:13px;color:#555">${date}<br>Ref KU-${ref}</div>
+    </div>
+    <p style="font-size:14px;margin:6px 0 0"><strong>${esc(n.schoolName)}</strong> · ${esc(n.campaignTitle)}</p>
+    <h3 style="font-size:15px;margin:16px 0 2px">School profile (ACARA)</h3>
+    ${demoRows.length ? htmlTable(demoRows) : '<p style="font-size:13px;color:#888">Not available.</p>'}
+    <h3 style="font-size:15px;margin:16px 0 2px">The need &amp; impact <span style="font-weight:400;color:#888;font-size:13px">(school-provided)</span></h3>
+    ${hasImpact ? htmlTable(impactRows) : '<p style="font-size:13px;color:#888">No impact details provided.</p>'}
+    <h3 style="font-size:15px;margin:16px 0 2px">Funded in this donation</h3>
+    <table style="border-collapse:collapse;width:100%;font-size:14px">
+      <tbody>${n.lines
+        .map(
+          (l) =>
+            `<tr><td style="padding:5px 10px;border-bottom:1px solid #eee">${esc(l.itemTitle)}</td><td style="padding:5px 10px;border-bottom:1px solid #eee;text-align:center">${l.quantity}</td><td style="padding:5px 10px;border-bottom:1px solid #eee;text-align:right">${money(l.amount)}</td></tr>`,
+        )
+        .join("")}</tbody>
+      <tfoot><tr><td colspan="2" style="padding:8px 10px;text-align:right;font-weight:bold">Total</td><td style="padding:8px 10px;text-align:right;font-weight:bold">${money(n.total)}</td></tr></tfoot>
+    </table>
+    <p style="font-size:13px;color:#555">Donor: ${esc(n.donorLabel)} · Stripe session <code>${esc(n.sessionId)}</code></p>
+    <p style="font-size:12px;color:#999">— Kit Up / ASF admin</p>
+  </div>`;
+
+  return sendAdminEmail(subject, text, html);
+}
+
 export interface DonationReceiptLine {
   campaignTitle: string;
   itemTitle: string;

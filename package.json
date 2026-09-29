@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "sync:images": "node scripts/sync_product_images.mjs",
     "enrich:addresses": "node scripts/enrich_school_addresses.mjs",
-    "import:remoteness": "node scripts/import_school_remoteness.mjs"
+    "import:remoteness": "node scripts/import_school_remoteness.mjs",
+    "import:demographics": "node scripts/import_school_demographics.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",

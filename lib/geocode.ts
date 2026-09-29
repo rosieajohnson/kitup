@@ -9,6 +9,13 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 export const REMOTENESS_READY = true;
 
 /**
+ * ACARA equity/demographic markers (migration 0031 + `npm run import:demographics`).
+ * Gated OFF until the columns exist and the registry is populated — flip to true
+ * afterwards so the ASF impact email includes them.
+ */
+export const DEMOGRAPHICS_READY = false;
+
+/**
  * Turn a school's authoritative ACARA coordinates into a deliverable street
  * address. ACARA only stores suburb/state/postcode, but it DOES store the
  * school's lat/long — reverse-geocoding those (via OpenStreetMap Nominatim)
@@ -51,11 +58,17 @@ const norm = (s: string) =>
  * return its coordinates. Requires a client that can read school_registry
  * (service-role).
  */
-interface RegistryRow {
+export interface RegistryRow {
   official_name: string;
   latitude: number | null;
   longitude: number | null;
   remoteness?: string | null;
+  total_enrolments?: number | null;
+  icsea?: number | null;
+  icsea_percentile?: number | null;
+  sea_bottom_quarter?: number | null;
+  indigenous_pct?: number | null;
+  lbote_pct?: number | null;
 }
 
 export async function acaraMatchForSchool(
@@ -65,7 +78,10 @@ export async function acaraMatchForSchool(
   if (!school.postcode) return null;
   const sel =
     "official_name, latitude, longitude" +
-    (REMOTENESS_READY ? ", remoteness" : "");
+    (REMOTENESS_READY ? ", remoteness" : "") +
+    (DEMOGRAPHICS_READY
+      ? ", total_enrolments, icsea, icsea_percentile, sea_bottom_quarter, indigenous_pct, lbote_pct"
+      : "");
   const { data: raw } = await admin
     .from("school_registry")
     .select(sel)
