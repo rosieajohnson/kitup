@@ -236,6 +236,10 @@ export default async function CampaignPage({ params }: Params) {
               Every item is priced directly from the Hart Sport catalogue. Funds
               are released to order the kit once an item is covered.
             </p>
+            <p className="mt-2 leading-relaxed">
+              Through our partnership with the Australian Sports Foundation, any
+              donation of $2 or more is tax deductible.
+            </p>
           </div>
         </aside>
       </div>
