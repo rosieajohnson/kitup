@@ -1,6 +1,12 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { notifyAdminReconciliation } from "@/lib/notify";
+import {
+  notifyAdminReconciliation,
+  type CampaignImpact,
+  type SchoolDemographics,
+} from "@/lib/notify";
+import { acaraMatchForSchool, DEMOGRAPHICS_READY } from "@/lib/geocode";
+import { CAMPAIGN_IMPACT_READY } from "@/lib/campaign-fields";
 
 /**
  * Campaign reconciliation (migration 0028). Gated OFF until the migration is
@@ -28,14 +34,43 @@ export async function reconcileCampaign(
   if (!RECONCILE_READY) return false;
 
   const claimedAt = new Date().toISOString();
+  // Impact answers live on the campaign (migration 0030); include them only when
+  // that column set is ready so we never select a column before it exists.
+  const campSelect =
+    "id, title, school_id" +
+    (CAMPAIGN_IMPACT_READY
+      ? ", students_reached, barrier, students_missing_out, usage_context, usage_frequency, participation_goal"
+      : "");
   const { data: claimed } = await admin
     .from("campaigns")
     .update({ reconciled_at: claimedAt })
     .eq("id", campaignId)
     .is("reconciled_at", null)
-    .select("id, title, school_id");
+    .select(campSelect);
   if (!claimed || claimed.length === 0) return false; // already reconciled
-  const camp = claimed[0];
+  const camp = claimed[0] as unknown as {
+    id: string;
+    title: string | null;
+    school_id: string;
+    students_reached?: number | null;
+    barrier?: string | null;
+    students_missing_out?: string | null;
+    usage_context?: string | null;
+    usage_frequency?: string | null;
+    participation_goal?: string | null;
+  };
+
+  // School-provided need/impact (from the campaign row).
+  const impact: CampaignImpact | null = CAMPAIGN_IMPACT_READY
+    ? {
+        studentsReached: camp.students_reached ?? null,
+        barrier: camp.barrier ?? "",
+        studentsMissingOut: camp.students_missing_out ?? "",
+        usageContext: camp.usage_context ?? "",
+        usageFrequency: camp.usage_frequency ?? "",
+        participationGoal: camp.participation_goal ?? "",
+      }
+    : null;
 
   // School + delivery address (street + ACARA locality).
   const { data: school } = await admin
@@ -68,6 +103,30 @@ export async function reconcileCampaign(
   const deliveryAddress = school
     ? [school.address, locality].filter(Boolean).join(", ") || null
     : null;
+
+  // ACARA equity markers (from the registry; null until it's populated).
+  let demographics: SchoolDemographics | null = null;
+  if (DEMOGRAPHICS_READY && school) {
+    try {
+      const m = await acaraMatchForSchool(admin, {
+        school: school.school,
+        postcode: school.postcode,
+      });
+      if (m) {
+        demographics = {
+          remoteness: m.remoteness ?? null,
+          totalEnrolments: m.total_enrolments ?? null,
+          icsea: m.icsea ?? null,
+          icseaPercentile: m.icsea_percentile ?? null,
+          seaBottomQuarter: m.sea_bottom_quarter ?? null,
+          indigenousPct: m.indigenous_pct ?? null,
+          lbotePct: m.lbote_pct ?? null,
+        };
+      }
+    } catch {
+      /* best-effort */
+    }
+  }
 
   // Funded purchases (exclude refunded), oldest first.
   const { data: purchases } = await admin
@@ -142,5 +201,7 @@ export async function reconcileCampaign(
     itemsFunded,
     itemsTotal,
     donationCount,
+    demographics,
+    impact,
   });
 }

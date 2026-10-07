@@ -91,6 +91,80 @@ function esc(s: string): string {
   );
 }
 
+/** ACARA equity/demographic markers for a school (from school_registry). */
+export interface SchoolDemographics {
+  remoteness?: string | null;
+  totalEnrolments?: number | null;
+  icsea?: number | null;
+  icseaPercentile?: number | null;
+  seaBottomQuarter?: number | null;
+  indigenousPct?: number | null;
+  lbotePct?: number | null;
+}
+
+/** School-provided need/impact answers for a campaign. */
+export interface CampaignImpact {
+  studentsReached: number | null;
+  barrier: string;
+  studentsMissingOut: string;
+  usageContext: string;
+  usageFrequency: string;
+  participationGoal: string;
+}
+
+const dash = (v: unknown) =>
+  v === null || v === undefined || v === "" ? "—" : String(v);
+const pctVal = (v: number | null | undefined) =>
+  v === null || v === undefined ? "—" : `${v}%`;
+
+/** ACARA profile as label/value rows (empty array when no demographics). */
+function demoRowsFor(d: SchoolDemographics | null): [string, string][] {
+  return d
+    ? [
+        ["Remoteness", dash(d.remoteness)],
+        ["Enrolments", dash(d.totalEnrolments)],
+        [
+          "ICSEA",
+          d.icsea
+            ? `${d.icsea}${d.icseaPercentile ? ` (percentile ${d.icseaPercentile})` : ""}`
+            : "—",
+        ],
+        ["Most-disadvantaged quarter (low-SES)", pctVal(d.seaBottomQuarter)],
+        ["First Nations students", pctVal(d.indigenousPct)],
+        ["Language background other than English", pctVal(d.lbotePct)],
+      ]
+    : [];
+}
+
+/** Need/impact as label/value rows + whether any were actually filled in. */
+function impactRowsFor(i: CampaignImpact | null): {
+  rows: [string, string][];
+  hasImpact: boolean;
+} {
+  const rows: [string, string][] = i
+    ? [
+        ["Students reached", dash(i.studentsReached)],
+        ["Barrier to self-funding", dash(i.barrier)],
+        ["Who's missing out", dash(i.studentsMissingOut)],
+        ["Where/how used", dash(i.usageContext)],
+        ["How often", dash(i.usageFrequency)],
+        ["Participation goal", dash(i.participationGoal)],
+      ]
+    : [];
+  return { rows, hasImpact: rows.some(([, v]) => v !== "—") };
+}
+
+const txtRows = (rows: [string, string][]) =>
+  rows.map(([k, v]) => `  ${(k + ":").padEnd(38)} ${v}`).join("\n");
+
+const htmlTable = (rows: [string, string][]) =>
+  `<table style="border-collapse:collapse;font-size:14px;margin:4px 0 10px">${rows
+    .map(
+      ([k, v]) =>
+        `<tr><td style="padding:3px 12px 3px 0;color:#888">${esc(k)}</td><td style="padding:3px 0;font-weight:${v === "—" ? "400" : "500"}">${esc(v)}</td></tr>`,
+    )
+    .join("")}</table>`;
+
 /**
  * Admin invoice for a donation, addressed to the funded school. One email per
  * school (a cart spanning several schools produces one invoice each). Includes
@@ -198,23 +272,8 @@ deliver to the school address above.
 export interface SchoolProfileNotice {
   campaignTitle: string;
   schoolName: string;
-  demographics: {
-    remoteness?: string | null;
-    totalEnrolments?: number | null;
-    icsea?: number | null;
-    icseaPercentile?: number | null;
-    seaBottomQuarter?: number | null;
-    indigenousPct?: number | null;
-    lbotePct?: number | null;
-  } | null;
-  impact: {
-    studentsReached: number | null;
-    barrier: string;
-    studentsMissingOut: string;
-    usageContext: string;
-    usageFrequency: string;
-    participationGoal: string;
-  } | null;
+  demographics: SchoolDemographics | null;
+  impact: CampaignImpact | null;
   lines: { itemTitle: string; quantity: number; amount: number }[];
   total: number;
   donorLabel: string;
@@ -237,43 +296,10 @@ export async function notifyAdminSchoolProfile(
   });
   const ref = n.sessionId.slice(-10).toUpperCase();
   const subject = `[Kit Up] School profile & impact — ${n.schoolName}`;
-  const dash = (v: unknown) =>
-    v === null || v === undefined || v === "" ? "—" : String(v);
-  const pct = (v: number | null | undefined) =>
-    v === null || v === undefined ? "—" : `${v}%`;
 
-  const d = n.demographics;
-  const demoRows: [string, string][] = d
-    ? [
-        ["Remoteness", dash(d.remoteness)],
-        ["Enrolments", dash(d.totalEnrolments)],
-        [
-          "ICSEA",
-          d.icsea
-            ? `${d.icsea}${d.icseaPercentile ? ` (percentile ${d.icseaPercentile})` : ""}`
-            : "—",
-        ],
-        ["Most-disadvantaged quarter (low-SES)", pct(d.seaBottomQuarter)],
-        ["First Nations students", pct(d.indigenousPct)],
-        ["Language background other than English", pct(d.lbotePct)],
-      ]
-    : [];
+  const demoRows = demoRowsFor(n.demographics);
+  const { rows: impactRows, hasImpact } = impactRowsFor(n.impact);
 
-  const i = n.impact;
-  const impactRows: [string, string][] = i
-    ? [
-        ["Students reached", dash(i.studentsReached)],
-        ["Barrier to self-funding", dash(i.barrier)],
-        ["Who's missing out", dash(i.studentsMissingOut)],
-        ["Where/how used", dash(i.usageContext)],
-        ["How often", dash(i.usageFrequency)],
-        ["Participation goal", dash(i.participationGoal)],
-      ]
-    : [];
-  const hasImpact = impactRows.some(([, v]) => v !== "—");
-
-  const txtRows = (rows: [string, string][]) =>
-    rows.map(([k, v]) => `  ${(k + ":").padEnd(38)} ${v}`).join("\n");
   const text = `KIT UP — SCHOOL PROFILE & IMPACT
 ${date} · Ref KU-${ref}
 
@@ -295,13 +321,6 @@ Stripe session: ${n.sessionId}
 
 — Kit Up / ASF admin`;
 
-  const htmlTable = (rows: [string, string][]) =>
-    `<table style="border-collapse:collapse;font-size:14px;margin:4px 0 10px">${rows
-      .map(
-        ([k, v]) =>
-          `<tr><td style="padding:3px 12px 3px 0;color:#888">${esc(k)}</td><td style="padding:3px 0;font-weight:${v === "—" ? "400" : "500"}">${esc(v)}</td></tr>`,
-      )
-      .join("")}</table>`;
   const html = `<div style="font-family:Arial,Helvetica,sans-serif;max-width:640px;color:#1a1a1a">
     <div style="display:flex;justify-content:space-between;align-items:baseline">
       <h2 style="margin:0;color:#e5533c">Kit Up — School profile &amp; impact</h2>
@@ -462,6 +481,10 @@ export interface ReconcileReport {
   itemsFunded: number;
   itemsTotal: number;
   donationCount: number;
+  /** ACARA equity markers for the school (null until registry is populated). */
+  demographics: SchoolDemographics | null;
+  /** School-provided need/impact answers (null if none captured). */
+  impact: CampaignImpact | null;
 }
 
 /**
@@ -484,6 +507,9 @@ export async function notifyAdminReconciliation(
   const deliveryNote = r.deliveryConfirmed
     ? "Delivery address confirmed by the school ✓"
     : "Delivery address auto-detected from ACARA — confirm before shipping.";
+
+  const demoRows = demoRowsFor(r.demographics);
+  const { rows: impactRows, hasImpact } = impactRowsFor(r.impact);
 
   const pad = (s: string, n: number) => (s + " ".repeat(n)).slice(0, n);
   const clip = (s: string, n: number) =>
@@ -511,6 +537,12 @@ DELIVER TO:
   ${r.deliveryAddress ?? "(no delivery address on file)"}
   ABN: ${r.abn ?? "—"}${r.abnEntityName ? `  (${r.abnEntityName})` : ""}
   ${deliveryNote}
+
+SCHOOL PROFILE (ACARA):
+${demoRows.length ? txtRows(demoRows) : "  (not available)"}
+
+THE NEED & IMPACT (school-provided):
+${hasImpact ? txtRows(impactRows) : "  (no impact details provided)"}
 
 Items funded: ${r.itemsFunded}/${r.itemsTotal}   Donations: ${r.donationCount}   Total: ${money(r.total)}
 
@@ -551,7 +583,11 @@ funded under, for reconciliation against payments received.
       <div>ABN: ${esc(r.abn ?? "—")}${r.abnEntityName ? ` <span style="color:#555">(${esc(r.abnEntityName)})</span>` : ""}</div>
       <div style="font-size:13px;margin-top:4px;color:${r.deliveryConfirmed ? "#2e7d32" : "#b26a00"}">${esc(deliveryNote)}</div>
     </div>
-    <p style="font-size:14px;color:#555;margin:0 0 8px">Items funded ${r.itemsFunded}/${r.itemsTotal} · ${r.donationCount} donations · total ${money(r.total)}</p>
+    <h3 style="font-size:15px;margin:16px 0 2px">School profile (ACARA)</h3>
+    ${demoRows.length ? htmlTable(demoRows) : '<p style="font-size:13px;color:#888">Not available.</p>'}
+    <h3 style="font-size:15px;margin:16px 0 2px">The need &amp; impact <span style="font-weight:400;color:#888;font-size:13px">(school-provided)</span></h3>
+    ${hasImpact ? htmlTable(impactRows) : '<p style="font-size:13px;color:#888">No impact details provided.</p>'}
+    <p style="font-size:14px;color:#555;margin:14px 0 8px">Items funded ${r.itemsFunded}/${r.itemsTotal} · ${r.donationCount} donations · total ${money(r.total)}</p>
     <table style="border-collapse:collapse;width:100%;font-size:14px">
       <thead><tr style="text-align:left;color:#555;font-size:12px;text-transform:uppercase">
         <th style="padding:7px 8px">Funded</th><th style="padding:7px 8px">Invoice</th>
