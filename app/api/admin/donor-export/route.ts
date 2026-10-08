@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getViewer } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
+import { PURCHASE_CONTACT_READY } from "@/lib/payments";
 
 /**
  * Admin-only CSV export of donations, one row per (donation, campaign):
@@ -14,8 +15,9 @@ import { isSupabaseConfigured } from "@/lib/supabase/env";
  * public-anonymous donations (the "anonymous" column records public anonymity);
  * ASF needs the identity for receipts.
  *
- * NOTE: "business" and "postcode" are always blank — Kit Up doesn't currently
- * capture either for donors.
+ * "business" and "postcode" are optional fields a donor may give at checkout
+ * (migration 0034 + PURCHASE_CONTACT_READY); blank when not provided or before
+ * the flag is flipped.
  */
 function csvCell(value: string | number): string {
   const s = String(value ?? "");
@@ -31,6 +33,8 @@ type Row = {
   guest_name: string | null;
   guest_email: string | null;
   stripe_checkout_session_id: string | null;
+  business?: string | null;
+  postcode?: string | null;
   donor: { name: string | null; contact_email: string | null } | { name: string | null; contact_email: string | null }[] | null;
 };
 
@@ -52,7 +56,8 @@ export async function GET() {
   const { data, error } = await admin
     .from("purchases")
     .select(
-      "id, created_at, amount, campaign_id, anonymous, guest_name, guest_email, stripe_checkout_session_id, donor:donors(name, contact_email)",
+      "id, created_at, amount, campaign_id, anonymous, guest_name, guest_email, stripe_checkout_session_id, donor:donors(name, contact_email)" +
+        (PURCHASE_CONTACT_READY ? ", business, postcode" : ""),
     )
     .is("refunded_at", null)
     .order("created_at", { ascending: true });
@@ -76,6 +81,8 @@ export async function GET() {
     date: string;
     name: string;
     email: string;
+    business: string;
+    postcode: string;
     anonymous: boolean;
     amount: number;
     campaignTitle: string;
@@ -93,11 +100,15 @@ export async function GET() {
     if (existing) {
       existing.amount += amount;
       if (p.created_at < existing.date) existing.date = p.created_at;
+      existing.business ||= (p.business ?? "").trim();
+      existing.postcode ||= (p.postcode ?? "").trim();
     } else {
       byKey.set(key, {
         date: p.created_at,
         name,
         email,
+        business: (p.business ?? "").trim(),
+        postcode: (p.postcode ?? "").trim(),
         anonymous: Boolean(p.anonymous),
         amount,
         campaignTitle: titleById.get(p.campaign_id) ?? "",
@@ -132,9 +143,9 @@ export async function GET() {
         csvCell(new Date(r.date).toISOString().slice(0, 10)),
         csvCell(firstName),
         csvCell(lastName),
-        csvCell(""), // business — not captured
+        csvCell(r.business),
         csvCell(r.email),
-        csvCell(""), // postcode — not captured
+        csvCell(r.postcode),
         csvCell(r.amount.toFixed(2)),
         csvCell(r.campaignTitle),
         csvCell(r.campaignId),

@@ -38,6 +38,8 @@ export async function createCheckoutSession(
   anonymous = false,
   coverCosts = true,
   agreedToTerms = false,
+  businessName?: string,
+  postcode?: string,
 ): Promise<{ error?: string; url?: string }> {
   if (!isSupabaseConfigured()) return { error: "Funding needs Supabase connected." };
   if (!isStripeConfigured()) return { error: "Payments aren't set up yet." };
@@ -216,6 +218,8 @@ export async function createCheckoutSession(
     guest_name: guestName ?? "",
     guest_email: guestEmail ?? "",
     anonymous: anonymous ? "1" : "",
+    business: (businessName ?? "").trim().slice(0, 200),
+    postcode: (postcode ?? "").trim().slice(0, 20),
     terms_accepted_at: new Date().toISOString(),
     cart_chunks: String(Math.ceil(cartJson.length / 450)),
   };

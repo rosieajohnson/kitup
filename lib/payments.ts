@@ -15,6 +15,13 @@ import { DELIVERY_CONFIRM_READY } from "@/lib/profile";
 import { reconcileCampaign, RECONCILE_READY } from "@/lib/reconcile";
 import { acaraMatchForSchool, DEMOGRAPHICS_READY } from "@/lib/geocode";
 
+/**
+ * Optional donor business + postcode on purchases (migration 0034). Gated OFF
+ * until the migration is applied — flip to true afterwards so checkout values
+ * are persisted and the admin donor CSV can read them.
+ */
+export const PURCHASE_CONTACT_READY = false;
+
 interface CartMapLine {
   i: string; // item_id
   c: string; // campaign_id
@@ -57,6 +64,8 @@ export async function recordPurchasesFromSession(
   const guestName = meta.guest_name || null;
   const guestEmail = meta.guest_email || null;
   const anonymous = meta.anonymous === "1";
+  const business = (meta.business || "").trim() || null;
+  const postcode = (meta.postcode || "").trim() || null;
   // Need either an account or guest contact to attribute the donation.
   if (!donorId && !guestEmail) return 0;
 
@@ -85,6 +94,8 @@ export async function recordPurchasesFromSession(
       campaign_id: l.c,
       quantity: l.q,
       amount: l.a,
+      // Optional donor business + postcode (migration 0034). Gated until applied.
+      ...(PURCHASE_CONTACT_READY ? { business, postcode } : {}),
     }));
   if (rows.length === 0) return 0;
 

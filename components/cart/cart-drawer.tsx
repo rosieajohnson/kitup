@@ -48,6 +48,9 @@ export function CartDrawer() {
   const [password, setPassword] = useState("");
   const [emailStatus, setEmailStatus] = useState<EmailStatus>("idle");
   const [anonymous, setAnonymous] = useState(false);
+  // Optional donor business + postcode (for the ASF donor records).
+  const [business, setBusiness] = useState("");
+  const [postcode, setPostcode] = useState("");
   // Fundraising-costs fee (shown only here at checkout; donor can opt out).
   const [coverCosts, setCoverCosts] = useState(true);
   const [feeOpen, setFeeOpen] = useState(false);
@@ -127,6 +130,8 @@ export function CartDrawer() {
         anonymous,
         coverCosts,
         agreedTerms,
+        business.trim(),
+        postcode.trim(),
       );
       if (result.error) setError(result.error);
       else if (result.url) window.location.href = result.url;
@@ -395,6 +400,32 @@ export function CartDrawer() {
                 )}
               </div>
             )}
+
+            <div className="mb-3 space-y-2 rounded-lg border border-line bg-canvas p-3">
+              <p className="text-xs font-semibold text-ink">
+                Business &amp; postcode{" "}
+                <span className="font-normal text-ink-faint">(optional)</span>
+              </p>
+              <input
+                type="text"
+                value={business}
+                onChange={(e) => setBusiness(e.target.value)}
+                placeholder="Business or organisation (optional)"
+                autoComplete="organization"
+                maxLength={200}
+                className="w-full rounded-md border border-line-strong bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:border-coral focus:outline-none focus:ring-2 focus:ring-coral/30"
+              />
+              <input
+                type="text"
+                value={postcode}
+                onChange={(e) => setPostcode(e.target.value)}
+                placeholder="Postcode (optional)"
+                autoComplete="postal-code"
+                inputMode="numeric"
+                maxLength={20}
+                className="w-full rounded-md border border-line-strong bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:border-coral focus:outline-none focus:ring-2 focus:ring-coral/30"
+              />
+            </div>
 
             <label className="mb-3 flex items-start gap-2 text-xs text-ink-soft">
               <input
