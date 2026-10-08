@@ -6,6 +6,7 @@ import {
   notifyAdminCampaignFunded,
   notifyAdminDonationReceipt,
   notifyAdminSchoolProfile,
+  notifyDonorThankYou,
 } from "@/lib/notify";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { lookupAbn } from "@/lib/abr";
@@ -234,6 +235,30 @@ async function notifyAdmin(
       feeTotal: feeTotal > 0.005 ? feeTotal : null,
       totalCharged,
     });
+
+    // Thank-you to the donor, from Kit Up (not the ASF tax receipt — ASF issues
+    // that). Only if we captured an email. Best-effort.
+    if (payerEmail) {
+      await notifyDonorThankYou({
+        donorName: payerName,
+        donorEmail: payerEmail,
+        lines: lines.map((l) => {
+          const camp = campById.get(l.c);
+          const it = itemById.get(l.i);
+          return {
+            campaignTitle: camp?.title ?? "a campaign",
+            schoolName: camp ? (schoolById.get(camp.school_id)?.school ?? null) : null,
+            itemTitle: it?.title ?? "an item",
+            quantity: l.q,
+            amount: l.a,
+          };
+        }),
+        donationTotal,
+        feeTotal: feeTotal > 0.005 ? feeTotal : null,
+        dateISO,
+        sessionId: session.id,
+      });
+    }
 
     for (const [sid, sLines] of linesBySchool) {
       const school = schoolById.get(sid);

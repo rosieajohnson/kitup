@@ -13,6 +13,10 @@ import "server-only";
 // ASF admin inbox. Placeholder until go-live — see kitup-placeholder-support-email.
 const ADMIN_RECIPIENT = "rosieajohnson@gmail.com";
 
+// Friendly donor-facing sender. Requires the kitup.tech domain to be verified in
+// Resend (SPF/DKIM) or sends from it will fail.
+const DONOR_FROM_EMAIL = "Kit Up <hello@kitup.tech>";
+
 function money(n: number): string {
   return new Intl.NumberFormat("en-AU", {
     style: "currency",
@@ -20,17 +24,22 @@ function money(n: number): string {
   }).format(n);
 }
 
-async function sendAdminEmail(
+async function sendEmail(
+  to: string,
   subject: string,
   text: string,
   html?: string,
+  fromOverride?: string,
 ): Promise<boolean> {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
     console.warn(`notify: RESEND_API_KEY not set — skipped "${subject}"`);
     return false;
   }
-  const from = process.env.CONTACT_FROM_EMAIL || "Kit Up <onboarding@resend.dev>";
+  const from =
+    fromOverride ||
+    process.env.CONTACT_FROM_EMAIL ||
+    "Kit Up <onboarding@resend.dev>";
   try {
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -40,7 +49,7 @@ async function sendAdminEmail(
       },
       body: JSON.stringify({
         from,
-        to: [ADMIN_RECIPIENT],
+        to: [to],
         subject,
         text,
         ...(html ? { html } : {}),
@@ -55,6 +64,14 @@ async function sendAdminEmail(
     console.error("notify error", err);
     return false;
   }
+}
+
+async function sendAdminEmail(
+  subject: string,
+  text: string,
+  html?: string,
+): Promise<boolean> {
+  return sendEmail(ADMIN_RECIPIENT, subject, text, html);
 }
 
 export interface InvoiceLine {
@@ -649,4 +666,121 @@ Every item is now funded — time to arrange the order.
 
 — You're receiving this as the Kit Up / ASF admin.`;
   return sendAdminEmail(subject, text);
+}
+
+export interface DonorThankYouLine {
+  campaignTitle: string;
+  schoolName: string | null;
+  itemTitle: string;
+  quantity: number;
+  amount: number;
+}
+
+export interface DonorThankYou {
+  donorName: string | null;
+  donorEmail: string;
+  lines: DonorThankYouLine[];
+  /** The donation itself (excludes the optional fundraising-costs fee). */
+  donationTotal: number;
+  /** The "cover our costs" fee, if the donor opted in — else null. */
+  feeTotal: number | null;
+  dateISO: string;
+  sessionId: string;
+}
+
+/**
+ * Warm thank-you to the donor, from Kit Up — sent to the donor's own email after
+ * a donation is recorded. This is a thank-you, NOT the tax receipt: the ASF
+ * issues the tax-deductible receipt separately. Best-effort; never throws.
+ */
+export async function notifyDonorThankYou(n: DonorThankYou): Promise<boolean> {
+  if (!n.donorEmail) return false;
+
+  const firstName = (n.donorName ?? "").trim().split(/\s+/)[0] || "";
+  const greeting = firstName ? `Hi ${firstName},` : "Hi there,";
+  const date = new Date(n.dateISO).toLocaleDateString("en-AU", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+
+  // Distinct schools helped, for the intro line.
+  const schools = Array.from(
+    new Set(n.lines.map((l) => l.schoolName).filter(Boolean) as string[]),
+  );
+  const schoolPhrase =
+    schools.length === 0
+      ? "a school on Kit Up"
+      : schools.length === 1
+        ? schools[0]
+        : schools.length === 2
+          ? `${schools[0]} and ${schools[1]}`
+          : `${schools.slice(0, -1).join(", ")} and ${schools[schools.length - 1]}`;
+
+  const subject =
+    schools.length === 1
+      ? `Thank you for supporting ${schools[0]} 🧡`
+      : "Thank you for your Kit Up donation 🧡";
+
+  const taxNote =
+    "Through our partnership with the Australian Sports Foundation, any donation of $2 or more is tax deductible. The ASF will issue your tax-deductible receipt separately — this email is just our thank-you.";
+
+  const itemised = n.lines
+    .map(
+      (l) =>
+        `  • ${l.itemTitle}${l.quantity > 1 ? ` × ${l.quantity}` : ""} — ${money(l.amount)}  (${l.campaignTitle})`,
+    )
+    .join("\n");
+  const feeLine =
+    n.feeTotal && n.feeTotal > 0.005
+      ? `\nYou also chipped in ${money(n.feeTotal)} to help cover our fundraising costs — thank you, that genuinely helps keep Kit Up running.\n`
+      : "";
+  const text = `${greeting}
+
+Thank you so much for your donation to ${schoolPhrase} through Kit Up. Because of you, real kit is on its way to students who need it.
+
+Here's what you funded:
+${itemised}
+
+  Your donation: ${money(n.donationTotal)}
+${feeLine}
+${taxNote}
+
+We'll let the school know their gear is funded. Thank you for backing local schools.
+
+— The Kit Up team
+${date} · Ref KU-${n.sessionId.slice(-10).toUpperCase()}`;
+
+  const rows = n.lines
+    .map(
+      (l) => `<tr>
+      <td style="padding:7px 8px;border-bottom:1px solid #eee">${esc(l.itemTitle)}${l.quantity > 1 ? ` <span style="color:#888">× ${l.quantity}</span>` : ""}<div style="font-size:12px;color:#888">${esc(l.campaignTitle)}</div></td>
+      <td style="padding:7px 8px;border-bottom:1px solid #eee;text-align:right;white-space:nowrap">${money(l.amount)}</td>
+    </tr>`,
+    )
+    .join("");
+  const html = `<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;color:#1a1a1a">
+    <h2 style="margin:0 0 4px;color:#e5533c">Thank you! 🧡</h2>
+    <p style="font-size:15px;line-height:1.5;margin:12px 0">${esc(greeting)}</p>
+    <p style="font-size:15px;line-height:1.5;margin:12px 0">Thank you so much for your donation to <strong>${esc(schoolPhrase)}</strong> through Kit Up. Because of you, real kit is on its way to students who need it.</p>
+    <h3 style="font-size:14px;margin:18px 0 4px;color:#555">What you funded</h3>
+    <table style="border-collapse:collapse;width:100%;font-size:14px">
+      <tbody>${rows}</tbody>
+      <tfoot><tr>
+        <td style="padding:9px 8px;text-align:right;font-weight:bold">Your donation</td>
+        <td style="padding:9px 8px;text-align:right;font-weight:bold;white-space:nowrap">${money(n.donationTotal)}</td>
+      </tr></tfoot>
+    </table>
+    ${
+      n.feeTotal && n.feeTotal > 0.005
+        ? `<p style="font-size:13px;line-height:1.5;color:#555;margin:12px 0">You also chipped in <strong>${money(n.feeTotal)}</strong> to help cover our fundraising costs — thank you, that genuinely helps keep Kit Up running.</p>`
+        : ""
+    }
+    <p style="font-size:13px;line-height:1.5;color:#555;margin:16px 0;padding:12px 14px;background:#f7f7f5;border-radius:8px">${esc(taxNote)}</p>
+    <p style="font-size:15px;line-height:1.5;margin:12px 0">We'll let the school know their gear is funded. Thank you for backing local schools.</p>
+    <p style="font-size:14px;margin:18px 0 2px">— The Kit Up team</p>
+    <p style="font-size:12px;color:#999;margin:0">${date} · Ref KU-${esc(n.sessionId.slice(-10).toUpperCase())}</p>
+  </div>`;
+
+  return sendEmail(n.donorEmail, subject, text, html, DONOR_FROM_EMAIL);
 }
