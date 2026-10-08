@@ -20,7 +20,7 @@ import { acaraMatchForSchool, DEMOGRAPHICS_READY } from "@/lib/geocode";
  * until the migration is applied — flip to true afterwards so checkout values
  * are persisted and the admin donor CSV can read them.
  */
-export const PURCHASE_CONTACT_READY = false;
+export const PURCHASE_CONTACT_READY = true;
 
 interface CartMapLine {
   i: string; // item_id
