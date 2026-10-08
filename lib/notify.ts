@@ -13,9 +13,19 @@ import "server-only";
 // ASF admin inbox. Placeholder until go-live — see kitup-placeholder-support-email.
 const ADMIN_RECIPIENT = "rosieajohnson@gmail.com";
 
-// Friendly donor-facing sender. Requires the kitup.tech domain to be verified in
-// Resend (SPF/DKIM) or sends from it will fail.
-const DONOR_FROM_EMAIL = "Kit Up <hello@kitup.tech>";
+// Go-live routing (see kitup-email-recipients). All placeholders for now — set
+// the real ASF and Modern Star (supplier) addresses before go-live.
+//   - ASF:       donation-received, reconciliation
+//   - Supplier:  order invoice, reconciliation
+const ASF_RECIPIENT = ADMIN_RECIPIENT;
+const SUPPLIER_RECIPIENT = ADMIN_RECIPIENT;
+
+// Friendly user-facing sender (donor thank-yous, welcome emails). Requires the
+// kitup.tech domain to be verified in Resend (SPF/DKIM) or sends will fail.
+const KITUP_FROM_EMAIL = "Kit Up <hello@kitup.tech>";
+
+// Public site URL, for links in user-facing emails.
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://kitup.tech";
 
 function money(n: number): string {
   return new Intl.NumberFormat("en-AU", {
@@ -25,7 +35,7 @@ function money(n: number): string {
 }
 
 async function sendEmail(
-  to: string,
+  to: string | string[],
   subject: string,
   text: string,
   html?: string,
@@ -36,6 +46,9 @@ async function sendEmail(
     console.warn(`notify: RESEND_API_KEY not set — skipped "${subject}"`);
     return false;
   }
+  // De-dupe so (e.g.) ASF + supplier resolving to the same placeholder inbox
+  // doesn't send two copies.
+  const recipients = Array.from(new Set(Array.isArray(to) ? to : [to]));
   const from =
     fromOverride ||
     process.env.CONTACT_FROM_EMAIL ||
@@ -49,7 +62,7 @@ async function sendEmail(
       },
       body: JSON.stringify({
         from,
-        to: [to],
+        to: recipients,
         subject,
         text,
         ...(html ? { html } : {}),
@@ -283,7 +296,8 @@ deliver to the school address above.
     <p style="font-size:12px;color:#999">— Kit Up / ASF admin</p>
   </div>`;
 
-  return sendAdminEmail(subject, text, html);
+  // Order invoice → the supplier (Modern Star).
+  return sendEmail(SUPPLIER_RECIPIENT, subject, text, html);
 }
 
 export interface SchoolProfileNotice {
@@ -374,6 +388,14 @@ export interface DonationReceiptLine {
   amount: number;
 }
 
+/** Per-campaign school profile (ACARA) + need/impact, for the ASF email. */
+export interface DonationProfileSection {
+  campaignTitle: string;
+  schoolName: string | null;
+  demographics: SchoolDemographics | null;
+  impact: CampaignImpact | null;
+}
+
 export interface DonationReceipt {
   donorName: string | null;
   donorEmail: string | null;
@@ -385,6 +407,8 @@ export interface DonationReceipt {
   /** Optional "Help cover our fundraising costs" fee, if the donor added it. */
   feeTotal?: number | null;
   totalCharged?: number | null;
+  /** School profile (ACARA) + need/impact per funded campaign (ASF context). */
+  profiles?: DonationProfileSection[];
 }
 
 /**
@@ -413,6 +437,39 @@ export async function notifyAdminDonationReceipt(
         `  • ${l.campaignTitle} — ${l.itemTitle}${l.sku ? ` [${l.sku}]` : ""}: ${l.quantity} × ${money(l.unitPrice)} = ${money(l.amount)}`,
     )
     .join("\n");
+
+  // School profile (ACARA) + need/impact per funded campaign — for ASF.
+  const sections = r.profiles ?? [];
+  const profileText = sections.length
+    ? "\n" +
+      sections
+        .map((s) => {
+          const demoRows = demoRowsFor(s.demographics);
+          const { rows: impactRows, hasImpact } = impactRowsFor(s.impact);
+          return `SCHOOL PROFILE & IMPACT — ${s.campaignTitle}${s.schoolName ? ` (${s.schoolName})` : ""}
+  School profile (ACARA):
+${demoRows.length ? txtRows(demoRows) : "    (not available)"}
+  The need & impact (school-provided):
+${hasImpact ? txtRows(impactRows) : "    (no impact details provided)"}`;
+        })
+        .join("\n\n")
+    : "";
+  const profileHtml = sections.length
+    ? sections
+        .map((s) => {
+          const demoRows = demoRowsFor(s.demographics);
+          const { rows: impactRows, hasImpact } = impactRowsFor(s.impact);
+          return `<div style="margin-top:14px">
+      <h3 style="font-size:15px;margin:0 0 2px">${esc(s.campaignTitle)}${s.schoolName ? ` <span style="font-weight:400;color:#888;font-size:13px">· ${esc(s.schoolName)}</span>` : ""}</h3>
+      <div style="font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:#888;margin-top:6px">School profile (ACARA)</div>
+      ${demoRows.length ? htmlTable(demoRows) : '<p style="font-size:13px;color:#888">Not available.</p>'}
+      <div style="font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:#888">The need &amp; impact <span style="text-transform:none;letter-spacing:0">(school-provided)</span></div>
+      ${hasImpact ? htmlTable(impactRows) : '<p style="font-size:13px;color:#888">No impact details provided.</p>'}
+    </div>`;
+        })
+        .join("")
+    : "";
+
   const text = `KIT UP — DONATION RECEIVED
 ${date} · Ref KU-${ref}
 
@@ -427,7 +484,7 @@ Total donated: ${money(r.donationTotal)}${
       ? `\nFundraising costs: ${money(r.feeTotal as number)}\nTotal charged: ${money(r.totalCharged ?? r.donationTotal + (r.feeTotal as number))}`
       : ""
   }
-
+${profileText}
 Stripe session: ${r.sessionId}
 
 — You're receiving this as the Kit Up / ASF admin.`;
@@ -467,11 +524,17 @@ Stripe session: ${r.sessionId}
         }
       </tfoot>
     </table>
-    <p style="font-size:13px;color:#555">Stripe session <code>${esc(r.sessionId)}</code></p>
+    ${
+      sections.length
+        ? `<h2 style="font-size:16px;color:#e5533c;margin:22px 0 2px">School profile &amp; impact</h2>${profileHtml}`
+        : ""
+    }
+    <p style="font-size:13px;color:#555;margin-top:16px">Stripe session <code>${esc(r.sessionId)}</code></p>
     <p style="font-size:12px;color:#999">— You're receiving this as the Kit Up / ASF admin.</p>
   </div>`;
 
-  return sendAdminEmail(subject, text, html);
+  // Donation received → ASF.
+  return sendEmail(ASF_RECIPIENT, subject, text, html);
 }
 
 export interface ReconcileLine {
@@ -623,7 +686,8 @@ funded under, for reconciliation against payments received.
     <p style="font-size:12px;color:#999">— Kit Up / ASF admin</p>
   </div>`;
 
-  return sendAdminEmail(subject, text, html);
+  // Reconciliation → both the supplier (Modern Star) and ASF.
+  return sendEmail([ASF_RECIPIENT, SUPPLIER_RECIPIENT], subject, text, html);
 }
 
 export interface FundedItem {
@@ -665,7 +729,7 @@ Total raised: ${money(n.amountRaised)}
 Every item is now funded — time to arrange the order.
 
 — You're receiving this as the Kit Up / ASF admin.`;
-  return sendAdminEmail(subject, text);
+  return sendEmail(ASF_RECIPIENT, subject, text);
 }
 
 export interface DonorThankYouLine {
@@ -782,5 +846,87 @@ ${date} · Ref KU-${n.sessionId.slice(-10).toUpperCase()}`;
     <p style="font-size:12px;color:#999;margin:0">${date} · Ref KU-${esc(n.sessionId.slice(-10).toUpperCase())}</p>
   </div>`;
 
-  return sendEmail(n.donorEmail, subject, text, html, DONOR_FROM_EMAIL);
+  return sendEmail(n.donorEmail, subject, text, html, KITUP_FROM_EMAIL);
+}
+
+/**
+ * Welcome email from Kit Up to a newly signed-up user (school or donor). Sent
+ * to the user's own address from hello@kitup.tech. Best-effort; never throws.
+ */
+export async function notifyUserWelcome(n: {
+  email: string;
+  role: "school" | "donor";
+  name: string | null;
+}): Promise<boolean> {
+  if (!n.email) return false;
+  const firstName = (n.name ?? "").trim().split(/\s+/)[0] || "";
+
+  if (n.role === "school") {
+    const greeting = n.name ? `Hi ${esc(n.name)} team,` : "Hi there,";
+    const subject = "Welcome to Kit Up 🎉";
+    const dash = `${APP_URL}/dashboard`;
+    const text = `${n.name ? `Hi ${n.name} team,` : "Hi there,"}
+
+Welcome to Kit Up — thanks for signing up! Kit Up helps your school raise the
+sports gear you need, funded by your community item by item.
+
+Here's how to get started:
+  1. Create a campaign and add the kit you need from the catalogue.
+  2. Add a photo and tell your community why it matters.
+  3. Post it — then share the link. Donors fund each item until you're there.
+
+Create your first campaign: ${dash}
+
+Every donation is processed through the Australian Sports Foundation, so your
+supporters' gifts of $2 or more are tax deductible.
+
+Thanks for backing local sport.
+
+— The Kit Up team`;
+    const html = `<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;color:#1a1a1a">
+    <h2 style="margin:0 0 4px;color:#e5533c">Welcome to Kit Up 🎉</h2>
+    <p style="font-size:15px;line-height:1.5;margin:12px 0">${greeting}</p>
+    <p style="font-size:15px;line-height:1.5;margin:12px 0">Thanks for signing up! Kit Up helps your school raise the sports gear you need, funded by your community item by item.</p>
+    <h3 style="font-size:14px;margin:18px 0 6px;color:#555">Getting started</h3>
+    <ol style="font-size:15px;line-height:1.6;margin:0 0 16px;padding-left:20px">
+      <li>Create a campaign and add the kit you need from the catalogue.</li>
+      <li>Add a photo and tell your community why it matters.</li>
+      <li>Post it — then share the link. Donors fund each item until you're there.</li>
+    </ol>
+    <p style="margin:18px 0"><a href="${dash}" style="display:inline-block;background:#e5533c;color:#fff;text-decoration:none;font-weight:bold;font-size:15px;padding:11px 20px;border-radius:9999px">Create your first campaign</a></p>
+    <p style="font-size:13px;line-height:1.5;color:#555;margin:16px 0;padding:12px 14px;background:#f7f7f5;border-radius:8px">Every donation is processed through the Australian Sports Foundation, so your supporters' gifts of $2 or more are tax deductible.</p>
+    <p style="font-size:15px;line-height:1.5;margin:12px 0">Thanks for backing local sport.</p>
+    <p style="font-size:14px;margin:18px 0 2px">— The Kit Up team</p>
+  </div>`;
+    return sendEmail(n.email, subject, text, html, KITUP_FROM_EMAIL);
+  }
+
+  // Donor
+  const greeting = firstName ? `Hi ${esc(firstName)},` : "Hi there,";
+  const subject = "Welcome to Kit Up 🎉";
+  const browse = `${APP_URL}/#browse`;
+  const text = `${firstName ? `Hi ${firstName},` : "Hi there,"}
+
+Welcome to Kit Up — thanks for joining! Kit Up lets you fund the exact sports
+gear local schools need, item by item, so you can see precisely what your
+donation buys.
+
+Browse campaigns and back a school: ${browse}
+
+Donations are processed through the Australian Sports Foundation, so any gift of
+$2 or more is tax deductible — the ASF issues your receipt.
+
+Thanks for backing local schools.
+
+— The Kit Up team`;
+  const html = `<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;color:#1a1a1a">
+    <h2 style="margin:0 0 4px;color:#e5533c">Welcome to Kit Up 🎉</h2>
+    <p style="font-size:15px;line-height:1.5;margin:12px 0">${greeting}</p>
+    <p style="font-size:15px;line-height:1.5;margin:12px 0">Thanks for joining! Kit Up lets you fund the exact sports gear local schools need, item by item — so you can see precisely what your donation buys.</p>
+    <p style="margin:18px 0"><a href="${browse}" style="display:inline-block;background:#e5533c;color:#fff;text-decoration:none;font-weight:bold;font-size:15px;padding:11px 20px;border-radius:9999px">Browse campaigns</a></p>
+    <p style="font-size:13px;line-height:1.5;color:#555;margin:16px 0;padding:12px 14px;background:#f7f7f5;border-radius:8px">Donations are processed through the Australian Sports Foundation, so any gift of $2 or more is tax deductible — the ASF issues your receipt.</p>
+    <p style="font-size:15px;line-height:1.5;margin:12px 0">Thanks for backing local schools.</p>
+    <p style="font-size:14px;margin:18px 0 2px">— The Kit Up team</p>
+  </div>`;
+  return sendEmail(n.email, subject, text, html, KITUP_FROM_EMAIL);
 }

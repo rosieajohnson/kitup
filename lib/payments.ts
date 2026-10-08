@@ -5,8 +5,9 @@ import {
   notifyAdminInvoice,
   notifyAdminCampaignFunded,
   notifyAdminDonationReceipt,
-  notifyAdminSchoolProfile,
   notifyDonorThankYou,
+  type DonationProfileSection,
+  type SchoolDemographics,
 } from "@/lib/notify";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { lookupAbn } from "@/lib/abr";
@@ -213,6 +214,51 @@ async function notifyAdmin(
     const donationTotal = lines.reduce((s, l) => s + l.a, 0);
     const totalCharged = (session.amount_total ?? 0) / 100;
     const feeTotal = Math.round((totalCharged - donationTotal) * 100) / 100;
+
+    // School profile (ACARA) + need/impact per funded campaign — folded into the
+    // ASF donation-received email below.
+    const profiles: DonationProfileSection[] = [];
+    for (const cid of campaignIds) {
+      const camp = campById.get(cid);
+      if (!camp) continue;
+      const school = schoolById.get(camp.school_id);
+      let demographics: SchoolDemographics | null = null;
+      if (DEMOGRAPHICS_READY && school) {
+        try {
+          const m = await acaraMatchForSchool(admin, {
+            school: school.school,
+            postcode: school.postcode,
+          });
+          if (m) {
+            demographics = {
+              remoteness: m.remoteness ?? null,
+              totalEnrolments: m.total_enrolments ?? null,
+              icsea: m.icsea ?? null,
+              icseaPercentile: m.icsea_percentile ?? null,
+              seaBottomQuarter: m.sea_bottom_quarter ?? null,
+              indigenousPct: m.indigenous_pct ?? null,
+              lbotePct: m.lbote_pct ?? null,
+            };
+          }
+        } catch {
+          /* best-effort */
+        }
+      }
+      profiles.push({
+        campaignTitle: camp.title ?? "a campaign",
+        schoolName: school?.school ?? null,
+        demographics,
+        impact: {
+          studentsReached: camp.students_reached ?? null,
+          barrier: camp.barrier ?? "",
+          studentsMissingOut: camp.students_missing_out ?? "",
+          usageContext: camp.usage_context ?? "",
+          usageFrequency: camp.usage_frequency ?? "",
+          participationGoal: camp.participation_goal ?? "",
+        },
+      });
+    }
+
     await notifyAdminDonationReceipt({
       donorName: payerName,
       donorEmail: payerEmail,
@@ -234,6 +280,7 @@ async function notifyAdmin(
       donationTotal,
       feeTotal: feeTotal > 0.005 ? feeTotal : null,
       totalCharged,
+      profiles,
     });
 
     // Thank-you to the donor, from Kit Up (not the ASF tax receipt — ASF issues
@@ -291,65 +338,6 @@ async function notifyAdmin(
         dateISO,
         lines: invLines,
         total: invLines.reduce((s, x) => s + x.amount, 0),
-      });
-    }
-
-    // 1b) ASF school-profile & impact email — per campaign funded now.
-    for (const cid of campaignIds) {
-      const camp = campById.get(cid);
-      if (!camp) continue;
-      const school = schoolById.get(camp.school_id);
-      const cLines = lines
-        .filter((l) => l.c === cid)
-        .map((l) => ({
-          itemTitle: itemById.get(l.i)?.title ?? "an item",
-          quantity: l.q,
-          amount: l.a,
-        }));
-      if (cLines.length === 0) continue;
-
-      let demographics: Parameters<
-        typeof notifyAdminSchoolProfile
-      >[0]["demographics"] = null;
-      if (DEMOGRAPHICS_READY && school) {
-        try {
-          const m = await acaraMatchForSchool(admin, {
-            school: school.school,
-            postcode: school.postcode,
-          });
-          if (m) {
-            demographics = {
-              remoteness: m.remoteness ?? null,
-              totalEnrolments: m.total_enrolments ?? null,
-              icsea: m.icsea ?? null,
-              icseaPercentile: m.icsea_percentile ?? null,
-              seaBottomQuarter: m.sea_bottom_quarter ?? null,
-              indigenousPct: m.indigenous_pct ?? null,
-              lbotePct: m.lbote_pct ?? null,
-            };
-          }
-        } catch {
-          /* best-effort */
-        }
-      }
-
-      await notifyAdminSchoolProfile({
-        campaignTitle: camp.title ?? "a campaign",
-        schoolName: school?.school ?? "the school",
-        demographics,
-        impact: {
-          studentsReached: camp.students_reached ?? null,
-          barrier: camp.barrier ?? "",
-          studentsMissingOut: camp.students_missing_out ?? "",
-          usageContext: camp.usage_context ?? "",
-          usageFrequency: camp.usage_frequency ?? "",
-          participationGoal: camp.participation_goal ?? "",
-        },
-        lines: cLines,
-        total: cLines.reduce((s, x) => s + x.amount, 0),
-        donorLabel,
-        sessionId: session.id,
-        dateISO,
       });
     }
 
