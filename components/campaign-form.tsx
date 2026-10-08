@@ -1,9 +1,21 @@
 "use client";
 
-import { useMemo, useRef, useState, useTransition } from "react";
+import { Fragment, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Minus, Trash2, Loader2, Info, Lock, Search } from "lucide-react";
+import Image from "next/image";
+import {
+  Plus,
+  Minus,
+  Trash2,
+  Loader2,
+  Info,
+  Lock,
+  Search,
+  Check,
+  ImageOff,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { money, moneyExact } from "@/lib/format";
 import type { HartSportProduct } from "@/lib/types";
 import { createCampaign } from "@/app/dashboard/campaigns/new/actions";
@@ -85,7 +97,6 @@ export function CampaignForm({
         quantity_funded: it.quantity_funded,
       })) ?? [],
   );
-  const [picked, setPicked] = useState("");
   const [query, setQuery] = useState("");
 
   const minDeadline = useMemo(() => {
@@ -100,7 +111,8 @@ export function CampaignForm({
     return catalogue.filter(
       (p) =>
         p.name.toLowerCase().includes(needle) ||
-        (p.category ?? "").toLowerCase().includes(needle),
+        (p.category ?? "").toLowerCase().includes(needle) ||
+        p.hart_sku.toLowerCase().includes(needle),
     );
   }, [catalogue, query]);
 
@@ -119,9 +131,14 @@ export function CampaignForm({
     0,
   );
 
-  function addItem() {
-    const product = catalogue.find((p) => p.id === picked);
-    if (!product) return;
+  // Products already in the campaign (by catalogue id) — drives the table's
+  // selected state.
+  const selectedProductIds = useMemo(
+    () => new Set(items.map((it) => it.hart_product_id)),
+    [items],
+  );
+
+  function addProduct(product: HartSportProduct) {
     setItems((prev) => [
       ...prev,
       {
@@ -134,7 +151,18 @@ export function CampaignForm({
         quantity_funded: 0,
       },
     ]);
-    setPicked("");
+  }
+
+  function toggleProduct(product: HartSportProduct) {
+    const existing = items.find((it) => it.hart_product_id === product.id);
+    if (existing) {
+      if (existing.quantity_funded > 0) return; // funded items are locked
+      setItems((prev) =>
+        prev.filter((it) => it.hart_product_id !== product.id),
+      );
+    } else {
+      addProduct(product);
+    }
   }
 
   function updateItem(key: number, patch: Partial<DraftItem>) {
@@ -368,10 +396,7 @@ export function CampaignForm({
                 id="catalogue-search"
                 type="search"
                 value={query}
-                onChange={(e) => {
-                  setQuery(e.target.value);
-                  setPicked("");
-                }}
+                onChange={(e) => setQuery(e.target.value)}
                 placeholder="e.g. netball, cones, gym mat, whistle…"
                 className={`${inputCls} pl-10`}
               />
@@ -385,47 +410,140 @@ export function CampaignForm({
           </div>
         )}
 
-        <div className="mt-4 flex flex-wrap items-end gap-3">
-          <div className="min-w-0 flex-1">
-            <label htmlFor="product" className={labelCls}>
-              Catalogue product
-            </label>
-            <select
-              id="product"
-              className={inputCls}
-              value={picked}
-              onChange={(e) => setPicked(e.target.value)}
-            >
-              <option value="">
-                {catalogue.length === 0
-                  ? "Catalogue is empty — import products first"
-                  : filtered.length === 0
-                    ? "No products match your search"
-                    : "Choose a product…"}
-              </option>
-              {grouped.map(([cat, products]) => (
-                <optgroup key={cat} label={cat}>
-                  {products.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                      {p.unit_price != null
-                        ? ` — ${moneyExact(p.unit_price)}`
-                        : ""}
-                    </option>
+        <div className="mt-4 overflow-hidden rounded-xl border border-line">
+          {catalogue.length === 0 ? (
+            <p className="p-4 text-sm text-ink-soft">
+              Catalogue is empty — import products first.
+            </p>
+          ) : filtered.length === 0 ? (
+            <p className="p-4 text-sm text-ink-soft">
+              No products match your search.
+            </p>
+          ) : (
+            <div className="max-h-[32rem] overflow-y-auto">
+              <table className="w-full border-collapse text-sm">
+                <thead className="sticky top-0 z-10 bg-surface-sunk/95 backdrop-blur">
+                  <tr className="text-left text-xs font-semibold uppercase tracking-wide text-ink-faint">
+                    <th className="px-3 py-2">Item</th>
+                    <th className="hidden px-3 py-2 sm:table-cell">SKU</th>
+                    <th className="px-3 py-2 text-right">Price</th>
+                    <th className="px-3 py-2 text-right">Select</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {grouped.map(([cat, products]) => (
+                    <Fragment key={cat}>
+                      <tr>
+                        <td
+                          colSpan={4}
+                          className="border-t border-line bg-canvas px-3 py-1.5 text-xs font-bold text-ink-soft"
+                        >
+                          {cat}
+                        </td>
+                      </tr>
+                      {products.map((p) => {
+                        const selected = selectedProductIds.has(p.id);
+                        const locked =
+                          selected &&
+                          (items.find((it) => it.hart_product_id === p.id)
+                            ?.quantity_funded ?? 0) > 0;
+                        return (
+                          <tr
+                            key={p.id}
+                            className={cn(
+                              "border-t border-line transition-colors",
+                              selected
+                                ? "bg-turf/5"
+                                : "hover:bg-surface-sunk/40",
+                            )}
+                          >
+                            <td className="px-3 py-2">
+                              <div className="flex items-center gap-3">
+                                <div className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-lg border border-line bg-canvas">
+                                  {p.image_url ? (
+                                    <Image
+                                      src={p.image_url}
+                                      alt=""
+                                      width={48}
+                                      height={48}
+                                      className="h-full w-full object-contain"
+                                    />
+                                  ) : (
+                                    <ImageOff
+                                      className="h-4 w-4 text-ink-faint"
+                                      aria-hidden
+                                    />
+                                  )}
+                                </div>
+                                <span className="font-medium text-ink">
+                                  {p.name}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="hidden px-3 py-2 font-mono text-xs text-ink-faint sm:table-cell">
+                              {p.hart_sku}
+                            </td>
+                            <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-ink">
+                              {p.unit_price != null
+                                ? moneyExact(p.unit_price)
+                                : "—"}
+                            </td>
+                            <td className="px-3 py-2 text-right">
+                              <button
+                                type="button"
+                                onClick={() => toggleProduct(p)}
+                                disabled={locked}
+                                aria-pressed={selected}
+                                title={
+                                  locked
+                                    ? "Funded items can't be removed"
+                                    : undefined
+                                }
+                                className={cn(
+                                  "inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors",
+                                  selected
+                                    ? locked
+                                      ? "cursor-not-allowed border-line bg-surface-sunk text-ink-faint"
+                                      : "border-turf bg-turf/10 text-turf-dark hover:bg-turf/20"
+                                    : "border-coral bg-coral/10 text-coral-dark hover:bg-coral/20",
+                                )}
+                              >
+                                {selected ? (
+                                  locked ? (
+                                    <>
+                                      <Lock className="h-3.5 w-3.5" aria-hidden />
+                                      Funded
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Check className="h-3.5 w-3.5" aria-hidden />
+                                      Added
+                                    </>
+                                  )
+                                ) : (
+                                  <>
+                                    <Plus className="h-3.5 w-3.5" aria-hidden />
+                                    Add
+                                  </>
+                                )}
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </Fragment>
                   ))}
-                </optgroup>
-              ))}
-            </select>
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={addItem}
-            disabled={!picked}
-          >
-            <Plus className="h-4 w-4" aria-hidden /> Add item
-          </Button>
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
+        {items.length > 0 && (
+          <p className="mt-3 text-sm font-medium text-ink-soft">
+            {items.length} item{items.length === 1 ? "" : "s"} selected — set
+            quantities and labels below.
+          </p>
+        )}
 
         {items.length > 0 && (
           <ul className="mt-6 space-y-3">
