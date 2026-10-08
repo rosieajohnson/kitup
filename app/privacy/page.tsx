@@ -18,6 +18,28 @@ export default function PrivacyPage() {
           How Kit Up collects, uses, holds, and protects your personal
           information.
         </p>
+
+        <div className="mt-6 rounded-xl border border-line bg-surface-sunk/60 p-4 text-sm leading-relaxed text-ink-soft">
+          <p className="font-semibold text-ink">Which privacy policy applies?</p>
+          <p className="mt-1">
+            This policy covers your use of the Kit Up website and your account.
+            Donations are processed by our charity partner, the{" "}
+            <strong>Australian Sports Foundation (ASF)</strong>, who receives the
+            donation and issues your tax-deductible receipt — the ASF handles the
+            personal information involved in a donation under its own{" "}
+            <a
+              href="https://asf.org.au/privacy-policy"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-semibold text-coral underline hover:text-coral-dark"
+            >
+              Privacy Policy
+            </a>
+            . You agree to the ASF&apos;s terms and privacy policy at checkout
+            when you donate.
+          </p>
+        </div>
+
         <div
           className="legal mt-8"
           dangerouslySetInnerHTML={{ __html: PRIVACY_HTML }}
