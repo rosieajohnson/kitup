@@ -70,6 +70,10 @@ function SignUpForm() {
   const [suggestions, setSuggestions] = useState<string[]>([]);
   // Schools must accept the ASF grant agreement (school <-> ASF) at sign-up.
   const [agreedGrant, setAgreedGrant] = useState(false);
+  // Everyone must confirm they're 18+; schools must also confirm they're
+  // authorised to act for the school.
+  const [confirmedAge, setConfirmedAge] = useState(false);
+  const [authorisedForSchool, setAuthorisedForSchool] = useState(false);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -99,6 +103,12 @@ function SignUpForm() {
       setError(passwordError);
       return;
     }
+    // Age gate applies to every account (donor or school).
+    if (!confirmedAge) {
+      setError("Please confirm that you are 18 years or older.");
+      return;
+    }
+    const nowISO = new Date().toISOString();
 
     // Role-specific metadata is read by the handle_new_user() trigger
     // (migration 0004) to provision the profiles + schools/donors rows.
@@ -108,6 +118,7 @@ function SignUpForm() {
       const suburb = String(form.get("suburb") ?? "").trim();
       const postcode = String(form.get("postcode") ?? "").trim();
       const abn = normalizeAbn(String(form.get("abn") ?? ""));
+      const position = String(form.get("position") ?? "").trim();
       if (!school) {
         setError("Please enter your school's name.");
         return;
@@ -124,6 +135,18 @@ function SignUpForm() {
         );
         return;
       }
+      if (!position) {
+        setError(
+          "Please enter your position at the school (e.g. Principal, Treasurer).",
+        );
+        return;
+      }
+      if (!authorisedForSchool) {
+        setError(
+          "Please confirm you're authorised to act on behalf of your school.",
+        );
+        return;
+      }
       if (!agreedGrant) {
         setError(
           "Please agree to the Grant Agreement with the Australian Sports Foundation to create a school account.",
@@ -136,7 +159,11 @@ function SignUpForm() {
         suburb,
         postcode,
         abn,
-        grant_accepted_at: new Date().toISOString(),
+        position,
+        authorised: "true",
+        authorised_at: nowISO,
+        grant_accepted_at: nowISO,
+        age_confirmed_at: nowISO,
       };
 
       // Verify the school against ACARA (name + postcode) and the ABN against
@@ -156,7 +183,7 @@ function SignUpForm() {
         setError("Please enter your name.");
         return;
       }
-      metadata = { role, name };
+      metadata = { role, name, age_confirmed_at: nowISO };
     }
 
     setLoading(true);
@@ -331,6 +358,14 @@ function SignUpForm() {
                 required
                 placeholder="e.g. 30 981 085 746"
               />
+              <Field
+                id="position"
+                label="Your position at the school"
+                type="text"
+                autoComplete="organization-title"
+                required
+                placeholder="e.g. Principal, Treasurer, Sports Coordinator"
+              />
             </>
           )}
 
@@ -359,27 +394,51 @@ function SignUpForm() {
             <PasswordChecklist password={password} className="mt-2" />
           </div>
 
+          <label className="flex items-start gap-2 text-sm text-ink-soft">
+            <input
+              type="checkbox"
+              checked={confirmedAge}
+              onChange={(e) => setConfirmedAge(e.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-line-strong text-coral focus:ring-coral/30"
+            />
+            <span>I confirm I am 18 years of age or older.</span>
+          </label>
+
           {role === "school" && (
-            <label className="flex items-start gap-2 text-sm text-ink-soft">
-              <input
-                type="checkbox"
-                checked={agreedGrant}
-                onChange={(e) => setAgreedGrant(e.target.checked)}
-                className="mt-0.5 h-4 w-4 rounded border-line-strong text-coral focus:ring-coral/30"
-              />
-              <span>
-                I have read and agree, on behalf of my school, to the{" "}
-                <a
-                  href="/grant-agreement"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="font-semibold text-coral underline hover:text-coral-dark"
-                >
-                  Grant Agreement
-                </a>{" "}
-                with the Australian Sports Foundation.
-              </span>
-            </label>
+            <>
+              <label className="flex items-start gap-2 text-sm text-ink-soft">
+                <input
+                  type="checkbox"
+                  checked={authorisedForSchool}
+                  onChange={(e) => setAuthorisedForSchool(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-line-strong text-coral focus:ring-coral/30"
+                />
+                <span>
+                  I confirm I am authorised to act on behalf of this school.
+                </span>
+              </label>
+
+              <label className="flex items-start gap-2 text-sm text-ink-soft">
+                <input
+                  type="checkbox"
+                  checked={agreedGrant}
+                  onChange={(e) => setAgreedGrant(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-line-strong text-coral focus:ring-coral/30"
+                />
+                <span>
+                  I have read and agree, on behalf of my school, to the{" "}
+                  <a
+                    href="/grant-agreement"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-semibold text-coral underline hover:text-coral-dark"
+                  >
+                    Grant Agreement
+                  </a>{" "}
+                  with the Australian Sports Foundation.
+                </span>
+              </label>
+            </>
           )}
 
           {error && (
