@@ -11,7 +11,6 @@ import {
   Info,
   Lock,
   Search,
-  Check,
   ImageOff,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -131,13 +130,6 @@ export function CampaignForm({
     0,
   );
 
-  // Products already in the campaign (by catalogue id) — drives the table's
-  // selected state.
-  const selectedProductIds = useMemo(
-    () => new Set(items.map((it) => it.hart_product_id)),
-    [items],
-  );
-
   function addProduct(product: HartSportProduct) {
     setItems((prev) => [
       ...prev,
@@ -163,6 +155,24 @@ export function CampaignForm({
     } else {
       addProduct(product);
     }
+  }
+
+  // Step a product's quantity straight from the picker table. Dropping an
+  // unfunded item below 1 removes it; a funded item can't go below what's funded.
+  function stepQuantity(product: HartSportProduct, delta: number) {
+    const it = items.find((i) => i.hart_product_id === product.id);
+    if (!it) return;
+    const minQty = Math.max(1, it.quantity_funded);
+    const next = it.quantity_needed + delta;
+    if (next < minQty) {
+      if (it.quantity_funded === 0) {
+        setItems((prev) =>
+          prev.filter((i) => i.hart_product_id !== product.id),
+        );
+      }
+      return;
+    }
+    updateItem(it.key, { quantity_needed: next });
   }
 
   function updateItem(key: number, patch: Partial<DraftItem>) {
@@ -442,11 +452,14 @@ export function CampaignForm({
                         </td>
                       </tr>
                       {products.map((p) => {
-                        const selected = selectedProductIds.has(p.id);
-                        const locked =
-                          selected &&
-                          (items.find((it) => it.hart_product_id === p.id)
-                            ?.quantity_funded ?? 0) > 0;
+                        const item = items.find(
+                          (it) => it.hart_product_id === p.id,
+                        );
+                        const selected = Boolean(item);
+                        const qty = item?.quantity_needed ?? 0;
+                        const funded = item?.quantity_funded ?? 0;
+                        const minQty = Math.max(1, funded);
+                        const locked = funded > 0;
                         return (
                           <tr
                             key={p.id}
@@ -488,45 +501,70 @@ export function CampaignForm({
                                 ? moneyExact(p.unit_price)
                                 : "—"}
                             </td>
-                            <td className="px-3 py-2 text-right">
-                              <button
-                                type="button"
-                                onClick={() => toggleProduct(p)}
-                                disabled={locked}
-                                aria-pressed={selected}
-                                title={
-                                  locked
-                                    ? "Funded items can't be removed"
-                                    : undefined
-                                }
-                                className={cn(
-                                  "inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors",
-                                  selected
-                                    ? locked
-                                      ? "cursor-not-allowed border-line bg-surface-sunk text-ink-faint"
-                                      : "border-turf bg-turf/10 text-turf-dark hover:bg-turf/20"
-                                    : "border-coral bg-coral/10 text-coral-dark hover:bg-coral/20",
-                                )}
-                              >
-                                {selected ? (
-                                  locked ? (
-                                    <>
-                                      <Lock className="h-3.5 w-3.5" aria-hidden />
-                                      Funded
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Check className="h-3.5 w-3.5" aria-hidden />
-                                      Added
-                                    </>
-                                  )
-                                ) : (
-                                  <>
+                            <td className="px-3 py-2">
+                              {selected ? (
+                                <div className="flex items-center justify-end gap-2">
+                                  <div className="inline-flex items-center rounded-full border border-turf/60 bg-turf/5">
+                                    <button
+                                      type="button"
+                                      aria-label={
+                                        !locked && qty <= minQty
+                                          ? "Remove item"
+                                          : "Decrease quantity"
+                                      }
+                                      onClick={() => stepQuantity(p, -1)}
+                                      disabled={locked && qty <= minQty}
+                                      title={
+                                        locked && qty <= minQty
+                                          ? `${funded} already funded`
+                                          : undefined
+                                      }
+                                      className="grid h-8 w-8 place-items-center rounded-full text-turf-dark hover:bg-turf/15 disabled:opacity-40"
+                                    >
+                                      {!locked && qty <= minQty ? (
+                                        <Trash2
+                                          className="h-3.5 w-3.5"
+                                          aria-hidden
+                                        />
+                                      ) : (
+                                        <Minus
+                                          className="h-3.5 w-3.5"
+                                          aria-hidden
+                                        />
+                                      )}
+                                    </button>
+                                    <span className="w-7 text-center text-sm font-bold tabular-nums text-turf-dark">
+                                      {qty}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      aria-label="Increase quantity"
+                                      onClick={() => stepQuantity(p, 1)}
+                                      className="grid h-8 w-8 place-items-center rounded-full text-turf-dark hover:bg-turf/15"
+                                    >
+                                      <Plus className="h-3.5 w-3.5" aria-hidden />
+                                    </button>
+                                  </div>
+                                  {locked && (
+                                    <Lock
+                                      className="h-3.5 w-3.5 shrink-0 text-turf-dark"
+                                      aria-label={`${funded} funded`}
+                                    />
+                                  )}
+                                </div>
+                              ) : (
+                                <div className="flex justify-end">
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleProduct(p)}
+                                    aria-pressed={false}
+                                    className="inline-flex items-center gap-1 rounded-full border border-coral bg-coral/10 px-3 py-1.5 text-xs font-semibold text-coral-dark transition-colors hover:bg-coral/20"
+                                  >
                                     <Plus className="h-3.5 w-3.5" aria-hidden />
                                     Add
-                                  </>
-                                )}
-                              </button>
+                                  </button>
+                                </div>
+                              )}
                             </td>
                           </tr>
                         );
