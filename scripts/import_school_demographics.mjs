@@ -95,15 +95,21 @@ for (const r of rows.slice(hi + 1)) {
 }
 console.log("rows to update:", updates.length);
 
-const CHUNK = 200;
+// Real UPDATEs (rows all exist — we filtered to existing acara_ids). Can't use
+// upsert here: INSERT...ON CONFLICT still validates NOT NULL (official_name) on
+// the proposed insert row. Run in parallel chunks to keep it quick.
+const CHUNK = 50;
 let done = 0;
 for (let i = 0; i < updates.length; i += CHUNK) {
   const chunk = updates.slice(i, i + CHUNK);
-  const { error } = await supabase
-    .from("school_registry")
-    .upsert(chunk, { onConflict: "acara_id" });
-  if (error) {
-    console.error(`upsert @${i} failed:`, error.message);
+  const results = await Promise.all(
+    chunk.map(({ acara_id, ...fields }) =>
+      supabase.from("school_registry").update(fields).eq("acara_id", acara_id),
+    ),
+  );
+  const firstErr = results.find((r) => r.error);
+  if (firstErr?.error) {
+    console.error(`update @${i} failed:`, firstErr.error.message);
     process.exit(1);
   }
   done += chunk.length;

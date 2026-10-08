@@ -13,7 +13,7 @@ export const REMOTENESS_READY = true;
  * Gated OFF until the columns exist and the registry is populated — flip to true
  * afterwards so the ASF impact email includes them.
  */
-export const DEMOGRAPHICS_READY = false;
+export const DEMOGRAPHICS_READY = true;
 
 /**
  * Turn a school's authoritative ACARA coordinates into a deliverable street
