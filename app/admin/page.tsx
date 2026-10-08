@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight, Download } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getAdminCampaigns, getAllDonationsReport } from "@/lib/data";
@@ -48,6 +48,11 @@ export default async function AdminPage() {
               rows={allDonations}
               filename="kitup-all-donations.csv"
             />
+            <a href="/api/admin/donor-export" download>
+              <Button size="sm" variant="outline">
+                <Download className="h-4 w-4" aria-hidden /> Donor CSV
+              </Button>
+            </a>
           </div>
         </div>
       </div>
