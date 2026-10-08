@@ -68,7 +68,7 @@ export async function SiteHeader() {
           )}
           <CartButton />
           {signedIn ? (
-            <SignOutButton />
+            <SignOutButton isSchool={viewer.role === "school"} />
           ) : (
             <Link href="/sign-in" className="hidden sm:block">
               <Button variant="ghost" size="sm">

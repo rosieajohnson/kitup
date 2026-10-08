@@ -290,28 +290,56 @@ export function CampaignForm({
                 placeholder="e.g. 120"
               />
             </div>
-            {IMPACT_SELECTS.map((f) => (
-              <div key={f.key}>
-                <label htmlFor={f.key} className={labelCls}>
-                  {f.label}
-                </label>
-                <select
-                  id={f.key}
-                  className={inputCls}
-                  value={impact[f.key]}
-                  onChange={(e) =>
-                    setImpact((v) => ({ ...v, [f.key]: e.target.value }))
-                  }
-                >
-                  <option value="">Select…</option>
-                  {f.options.map((o) => (
-                    <option key={o} value={o}>
-                      {o}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            ))}
+            {IMPACT_SELECTS.map((f) => {
+              const options = f.options as readonly string[];
+              const hasOther = options.includes("Other");
+              const current = impact[f.key];
+              // A stored value that isn't a preset option is a custom "Other"
+              // answer — show the select on "Other" and prefill the text box.
+              const isCustom =
+                hasOther && current !== "" && !options.includes(current);
+              const showOther =
+                hasOther && (current === "Other" || isCustom);
+              return (
+                <div key={f.key}>
+                  <label htmlFor={f.key} className={labelCls}>
+                    {f.label}
+                  </label>
+                  <select
+                    id={f.key}
+                    className={inputCls}
+                    value={isCustom ? "Other" : current}
+                    onChange={(e) =>
+                      setImpact((v) => ({ ...v, [f.key]: e.target.value }))
+                    }
+                  >
+                    <option value="">Select…</option>
+                    {f.options.map((o) => (
+                      <option key={o} value={o}>
+                        {o}
+                      </option>
+                    ))}
+                  </select>
+                  {showOther && (
+                    <input
+                      type="text"
+                      className={`${inputCls} mt-2`}
+                      // "Other" sentinel means picked-but-not-typed → empty box.
+                      value={isCustom ? current : ""}
+                      onChange={(e) =>
+                        setImpact((v) => ({
+                          ...v,
+                          [f.key]: e.target.value || "Other",
+                        }))
+                      }
+                      placeholder="Please specify"
+                      aria-label={`${f.label} — please specify`}
+                      maxLength={200}
+                    />
+                  )}
+                </div>
+              );
+            })}
           </div>
         </section>
       )}

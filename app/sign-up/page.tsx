@@ -119,6 +119,7 @@ function SignUpForm() {
       const postcode = String(form.get("postcode") ?? "").trim();
       const abn = normalizeAbn(String(form.get("abn") ?? ""));
       const position = String(form.get("position") ?? "").trim();
+      const phone = String(form.get("phone") ?? "").trim();
       if (!school) {
         setError("Please enter your school's name.");
         return;
@@ -141,6 +142,10 @@ function SignUpForm() {
         );
         return;
       }
+      if (phone.replace(/[^0-9]/g, "").length < 8) {
+        setError("Please enter a valid contact phone number for your school.");
+        return;
+      }
       if (!authorisedForSchool) {
         setError(
           "Please confirm you're authorised to act on behalf of your school.",
@@ -160,6 +165,7 @@ function SignUpForm() {
         postcode,
         abn,
         position,
+        phone,
         authorised: "true",
         authorised_at: nowISO,
         grant_accepted_at: nowISO,
@@ -366,6 +372,15 @@ function SignUpForm() {
                 required
                 placeholder="e.g. Principal, Treasurer, Sports Coordinator"
               />
+              <Field
+                id="phone"
+                label="Contact phone number"
+                type="tel"
+                autoComplete="tel"
+                inputMode="tel"
+                required
+                placeholder="e.g. (03) 9123 4567"
+              />
             </>
           )}
 
@@ -527,7 +542,7 @@ function Field({
   autoComplete?: string;
   required?: boolean;
   minLength?: number;
-  inputMode?: "numeric" | "text" | "email";
+  inputMode?: "numeric" | "text" | "email" | "tel";
   pattern?: string;
   value?: string;
   onChange?: React.ChangeEventHandler<HTMLInputElement>;
