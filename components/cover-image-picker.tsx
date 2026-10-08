@@ -10,6 +10,20 @@ import { isSupabaseConfigured } from "@/lib/supabase/env";
 
 const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
 
+// Some browsers report an empty/odd MIME type (iPhone HEIC, AVIF, images with no
+// clean type), so accept by extension too and derive a content-type from it.
+const EXT_TYPE: Record<string, string> = {
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  gif: "image/gif",
+  webp: "image/webp",
+  avif: "image/avif",
+  bmp: "image/bmp",
+  heic: "image/heic",
+  heif: "image/heif",
+};
+
 export function CoverImagePicker({
   value,
   onChange,
@@ -32,8 +46,10 @@ export function CoverImagePicker({
     if (!file) return;
     setError(null);
 
-    if (!file.type.startsWith("image/")) {
-      setError("Please choose an image file.");
+    const ext = file.name.split(".").pop()?.toLowerCase() || "";
+    const isImage = file.type.startsWith("image/") || ext in EXT_TYPE;
+    if (!isImage) {
+      setError("Please choose an image file (JPG, PNG, WEBP or HEIC).");
       return;
     }
     if (file.size > MAX_BYTES) {
@@ -56,11 +72,40 @@ export function CoverImagePicker({
       return;
     }
 
-    const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
-    const path = `${user.id}/${crypto.randomUUID()}.${ext}`;
+    // iPhone HEIC/HEIF photos can't be shown by browsers or Next's image
+    // optimizer, so convert to JPEG in the browser before upload.
+    let uploadBlob: Blob = file;
+    let uploadExt = ext || "jpg";
+    let contentType = file.type || EXT_TYPE[ext] || "application/octet-stream";
+    const isHeic =
+      ext === "heic" ||
+      ext === "heif" ||
+      contentType === "image/heic" ||
+      contentType === "image/heif";
+    if (isHeic) {
+      try {
+        const heic2any = (await import("heic2any")).default;
+        const out = await heic2any({
+          blob: file,
+          toType: "image/jpeg",
+          quality: 0.85,
+        });
+        uploadBlob = Array.isArray(out) ? out[0] : out;
+        uploadExt = "jpg";
+        contentType = "image/jpeg";
+      } catch {
+        setError(
+          "We couldn't process that iPhone photo — please try a JPG or PNG.",
+        );
+        setUploading(false);
+        return;
+      }
+    }
+
+    const path = `${user.id}/${crypto.randomUUID()}.${uploadExt}`;
     const { error: upErr } = await supabase.storage
       .from("campaign-images")
-      .upload(path, file, { contentType: file.type, upsert: false });
+      .upload(path, uploadBlob, { contentType, upsert: false });
     if (upErr) {
       setError(upErr.message);
       setUploading(false);
@@ -137,7 +182,7 @@ export function CoverImagePicker({
         <input
           ref={fileRef}
           type="file"
-          accept="image/*"
+          accept="image/*,.heic,.heif"
           className="hidden"
           onChange={onFile}
         />
@@ -169,7 +214,8 @@ export function CoverImagePicker({
       </div>
 
       <p className="mt-2 text-xs text-ink-faint">
-        Pick a built-in sports image, or upload your own (JPG/PNG, up to 5 MB).
+        Pick a built-in sports image, or upload your own (JPG, PNG or iPhone
+        HEIC, up to 5 MB).
       </p>
       {error && (
         <p role="alert" className="mt-1 text-sm font-medium text-coral-dark">
