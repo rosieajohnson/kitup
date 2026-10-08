@@ -15,6 +15,7 @@ import {
   verifySchoolAbn,
   precheckSchool,
   geocodeSchoolAddress,
+  sendWelcomeEmail,
 } from "@/app/sign-up/actions";
 
 type Role = "donor" | "school";
@@ -217,6 +218,10 @@ function SignUpForm() {
       void verifySchoolAbn(data.user.id).catch(() => {});
       // Fill a delivery street address from ACARA coordinates (best-effort).
       void geocodeSchoolAddress(data.user.id).catch(() => {});
+    }
+    // Welcome email from Kit Up (best-effort, both roles).
+    if (data.user) {
+      void sendWelcomeEmail(data.user.id).catch(() => {});
     }
 
     // With email confirmation on (Supabase default) there is no session

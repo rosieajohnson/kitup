@@ -4,6 +4,54 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { lookupAbn, namesMatch } from "@/lib/abr";
 import { normalizeAbn, isValidAbn } from "@/lib/abn";
 import { fillSchoolDeliveryAddress } from "@/lib/geocode";
+import { notifyUserWelcome } from "@/lib/notify";
+
+/**
+ * Send the Kit Up welcome email to a just-created user. Trusted: reads the
+ * user's role + email from the DB (never the caller). Best-effort; never blocks
+ * sign-up.
+ */
+export async function sendWelcomeEmail(userId: string): Promise<void> {
+  try {
+    const admin = createAdminClient();
+    const { data: profile } = await admin
+      .from("profiles")
+      .select("role")
+      .eq("id", userId)
+      .maybeSingle();
+    const role =
+      profile?.role === "school"
+        ? "school"
+        : profile?.role === "donor"
+          ? "donor"
+          : null;
+    if (!role) return;
+
+    let email: string | null = null;
+    let name: string | null = null;
+    if (role === "school") {
+      const { data } = await admin
+        .from("schools")
+        .select("contact_email, school")
+        .eq("id", userId)
+        .maybeSingle();
+      email = data?.contact_email ?? null;
+      name = data?.school ?? null;
+    } else {
+      const { data } = await admin
+        .from("donors")
+        .select("contact_email, name")
+        .eq("id", userId)
+        .maybeSingle();
+      email = data?.contact_email ?? null;
+      name = data?.name ?? null;
+    }
+    if (!email) return;
+    await notifyUserWelcome({ email, role, name });
+  } catch {
+    /* best-effort */
+  }
+}
 
 /**
  * Best-effort: reverse-geocode a newly-provisioned school's ACARA coordinates
