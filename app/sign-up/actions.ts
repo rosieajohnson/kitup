@@ -7,6 +7,32 @@ import { fillSchoolDeliveryAddress } from "@/lib/geocode";
 import { notifyUserWelcome } from "@/lib/notify";
 
 /**
+ * Verify a reCAPTCHA v2 token server-side (secret stays server-only). Skipped
+ * (returns ok) until RECAPTCHA_SECRET_KEY is configured, so dev works keyless.
+ */
+export async function verifyCaptcha(
+  token: string,
+): Promise<{ ok: boolean }> {
+  const secret = process.env.RECAPTCHA_SECRET_KEY;
+  if (!secret) return { ok: true }; // not configured → gate is dormant
+  if (!token) return { ok: false };
+  try {
+    const res = await fetch(
+      "https://www.google.com/recaptcha/api/siteverify",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ secret, response: token }),
+      },
+    );
+    const data = (await res.json()) as { success?: boolean };
+    return { ok: Boolean(data.success) };
+  } catch {
+    return { ok: false };
+  }
+}
+
+/**
  * Send the Kit Up welcome email to a just-created user. Trusted: reads the
  * user's role + email from the DB (never the caller). Best-effort; never blocks
  * sign-up.

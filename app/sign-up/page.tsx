@@ -16,7 +16,12 @@ import {
   precheckSchool,
   geocodeSchoolAddress,
   sendWelcomeEmail,
+  verifyCaptcha,
 } from "@/app/sign-up/actions";
+import {
+  RecaptchaCheckbox,
+  RECAPTCHA_ENABLED,
+} from "@/components/recaptcha-checkbox";
 
 type Role = "donor" | "school";
 
@@ -75,6 +80,9 @@ function SignUpForm() {
   // authorised to act for the school.
   const [confirmedAge, setConfirmedAge] = useState(false);
   const [authorisedForSchool, setAuthorisedForSchool] = useState(false);
+  // reCAPTCHA (only active when a site key is configured).
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaReset, setCaptchaReset] = useState(0);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -109,6 +117,24 @@ function SignUpForm() {
       setError("Please confirm that you are 18 years or older.");
       return;
     }
+
+    // Bot check (only when reCAPTCHA is configured). Verified server-side.
+    if (RECAPTCHA_ENABLED) {
+      if (!captchaToken) {
+        setError("Please complete the “I’m not a robot” check.");
+        return;
+      }
+      const cap = await verifyCaptcha(captchaToken);
+      if (!cap.ok) {
+        setError(
+          "The “I’m not a robot” check failed — please tick the box again.",
+        );
+        setCaptchaToken(null);
+        setCaptchaReset((n) => n + 1);
+        return;
+      }
+    }
+
     const nowISO = new Date().toISOString();
 
     // Role-specific metadata is read by the handle_new_user() trigger
@@ -209,6 +235,10 @@ function SignUpForm() {
     if (signUpError) {
       setError(friendlySignUpError(signUpError));
       setLoading(false);
+      if (RECAPTCHA_ENABLED) {
+        setCaptchaToken(null);
+        setCaptchaReset((n) => n + 1);
+      }
       return;
     }
 
@@ -459,6 +489,13 @@ function SignUpForm() {
                 </span>
               </label>
             </>
+          )}
+
+          {RECAPTCHA_ENABLED && (
+            <RecaptchaCheckbox
+              onToken={setCaptchaToken}
+              resetSignal={captchaReset}
+            />
           )}
 
           {error && (
