@@ -1,7 +1,7 @@
 "use server";
 
 // Server-only: the support inbox is never sent to the browser.
-const SUPPORT_RECIPIENT = "rosieajohnson@gmail.com";
+const SUPPORT_RECIPIENT = "rosie.johnson@pep.com.au";
 
 export interface ContactInput {
   name: string;

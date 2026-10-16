@@ -11,7 +11,7 @@ import "server-only";
  */
 
 // ASF admin inbox. Placeholder until go-live — see kitup-placeholder-support-email.
-const ADMIN_RECIPIENT = "rosieajohnson@gmail.com";
+const ADMIN_RECIPIENT = "rosie.johnson@pep.com.au";
 
 // Go-live routing (see kitup-email-recipients). All placeholders for now — set
 // the real ASF and Modern Star (supplier) addresses before go-live.

@@ -91,7 +91,7 @@ links in those emails point at the live site:
 ---
 
 ## Other loose ends before a "real" launch
-- Replace the placeholder support/admin email `rosieajohnson@gmail.com`
+- Replace the placeholder support/admin email `rosie.johnson@pep.com.au`
   (`app/contact/actions.ts` and `lib/notify.ts`).
 - Delete any temporary Vercel tokens shared during setup.
 - Optional: set a `www` → apex redirect in Vercel so both go to `kitup.tech`.

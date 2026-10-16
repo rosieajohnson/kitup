@@ -13,7 +13,7 @@ _Last updated: 2026-07-17_
 1. **Supabase Site URL** → set to `https://kitup.tech` (see section 4 — makes signup emails work).
 2. **Stripe webhook** for the live domain (see section 3).
 3. **Delete the temporary Vercel token** at https://vercel.com/account/tokens (it was shared in chat).
-4. **Replace the placeholder support email** `rosieajohnson@gmail.com` before real launch
+4. **Replace the placeholder support email** `rosie.johnson@pep.com.au` before real launch
    (used in `app/contact/actions.ts` and `lib/notify.ts`).
 
 ### Two account facts worth remembering (they caused confusion)
