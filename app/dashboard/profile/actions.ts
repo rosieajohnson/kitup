@@ -49,6 +49,10 @@ export async function requestEditUnlock(): Promise<{ ok?: boolean; error?: strin
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         from, to: [user.email],
+        // Monitoring copy (BCC), unless it's the same address.
+        ...(user.email === "rosie.johnson@pep.com.au"
+          ? {}
+          : { bcc: ["rosie.johnson@pep.com.au"] }),
         subject: "Unlock editing your Kit Up profile",
         html,
         text: `Unlock editing your Kit Up profile (valid 1 hour):\n${link}`,

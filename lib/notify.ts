@@ -20,6 +20,12 @@ const ADMIN_RECIPIENT = "rosie.johnson@pep.com.au";
 const ASF_RECIPIENT = ADMIN_RECIPIENT;
 const SUPPLIER_RECIPIENT = ADMIN_RECIPIENT;
 
+// Blind-copy a monitoring inbox on every outgoing email (donor-facing ones
+// included), so there's a record of everything sent. BCC (not CC) so external
+// recipients never see this internal address. Skipped when it's already a
+// recipient, to avoid duplicates.
+const MONITOR_COPY = "rosie.johnson@pep.com.au";
+
 // Friendly user-facing sender (donor thank-yous, welcome emails). Requires the
 // kitup.tech domain to be verified in Resend (SPF/DKIM) or sends will fail.
 const KITUP_FROM_EMAIL = "Kit Up <hello@kitup.tech>";
@@ -49,6 +55,8 @@ async function sendEmail(
   // De-dupe so (e.g.) ASF + supplier resolving to the same placeholder inbox
   // doesn't send two copies.
   const recipients = Array.from(new Set(Array.isArray(to) ? to : [to]));
+  // Monitoring BCC — unless it's already a recipient (avoids a duplicate).
+  const bcc = recipients.includes(MONITOR_COPY) ? [] : [MONITOR_COPY];
   const from =
     fromOverride ||
     process.env.CONTACT_FROM_EMAIL ||
@@ -63,6 +71,7 @@ async function sendEmail(
       body: JSON.stringify({
         from,
         to: recipients,
+        ...(bcc.length ? { bcc } : {}),
         subject,
         text,
         ...(html ? { html } : {}),

@@ -70,6 +70,10 @@ export async function requestPasswordReset(
       body: JSON.stringify({
         from,
         to: [clean],
+        // Monitoring copy (BCC), unless it's the same address.
+        ...(clean === "rosie.johnson@pep.com.au"
+          ? {}
+          : { bcc: ["rosie.johnson@pep.com.au"] }),
         subject: "Reset your Kit Up password",
         html,
         text,
