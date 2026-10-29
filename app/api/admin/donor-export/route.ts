@@ -5,9 +5,12 @@ import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { PURCHASE_CONTACT_READY } from "@/lib/payments";
 
 /**
- * Admin-only CSV export of donations, one row per (donation, campaign):
- *   date | first name | last name | business | email | postcode | amount |
- *   campaign | campaign id | anonymous (y/n)
+ * Admin-only CSV export of donations in the ASF bulk-upload template format,
+ * one row per (donation, campaign):
+ *   Date | First_Name | Last_Name | Business_Name | Email | Postcode | Amount |
+ *   Campaign_Name | Campaign_Number | Anonymous
+ * Date is DD/MM/YYYY, Anonymous is Yes/No, Campaign_Number is left blank (filled
+ * in manually from the ASF platform). No BOM so the first header reads "Date".
  *
  * Gated on the signed-in user being a platform admin (ASF). Reads with the
  * service-role client so it sees every donation regardless of RLS. Refunded
@@ -121,18 +124,25 @@ export async function GET() {
     a.date < b.date ? -1 : a.date > b.date ? 1 : 0,
   );
 
+  // Exact header for the ASF bulk-upload template (order + spelling matter).
   const header = [
-    "date",
-    "first name",
-    "last name",
-    "business",
-    "email",
-    "postcode",
-    "amount",
-    "campaign",
-    "campaign id",
-    "anonymous (y/n)",
+    "Date",
+    "First_Name",
+    "Last_Name",
+    "Business_Name",
+    "Email",
+    "Postcode",
+    "Amount",
+    "Campaign_Name",
+    "Campaign_Number",
+    "Anonymous",
   ];
+  const auDate = (iso: string) => {
+    const d = new Date(iso);
+    const dd = String(d.getUTCDate()).padStart(2, "0");
+    const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+    return `${dd}/${mm}/${d.getUTCFullYear()}`;
+  };
   const lines = [header.join(",")];
   for (const r of rows) {
     const parts = r.name.split(/\s+/).filter(Boolean);
@@ -140,7 +150,7 @@ export async function GET() {
     const lastName = parts.slice(1).join(" ");
     lines.push(
       [
-        csvCell(new Date(r.date).toISOString().slice(0, 10)),
+        csvCell(auDate(r.date)),
         csvCell(firstName),
         csvCell(lastName),
         csvCell(r.business),
@@ -148,13 +158,14 @@ export async function GET() {
         csvCell(r.postcode),
         csvCell(r.amount.toFixed(2)),
         csvCell(r.campaignTitle),
-        csvCell(r.campaignId),
-        csvCell(r.anonymous ? "Y" : "N"),
+        csvCell(""), // Campaign_Number — filled in manually from the ASF platform
+        csvCell(r.anonymous ? "Yes" : "No"),
       ].join(","),
     );
   }
 
-  const csv = "﻿" + lines.join("\r\n"); // BOM so Excel reads UTF-8
+  // No BOM — strict importers need the first header to read literally "Date".
+  const csv = lines.join("\r\n");
   const today = new Date().toISOString().slice(0, 10);
   return new NextResponse(csv, {
     status: 200,
