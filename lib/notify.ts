@@ -741,6 +741,55 @@ Every item is now funded — time to arrange the order.
   return sendEmail(ASF_RECIPIENT, subject, text);
 }
 
+export interface AbnMismatchNotice {
+  schoolName: string;
+  postcode: string | null;
+  abn: string | null;
+  entityName: string | null;
+  schoolId: string;
+}
+
+/**
+ * Admin alert: a school passed ACARA verification at sign-up, but its ABN is
+ * registered to a DIFFERENT entity (and isn't a known shared government ABN).
+ * The account is allowed (ACARA proves the school); abn_verified is left false.
+ * Admin reviews — and if it's a legitimate shared ABN, adds it to
+ * SHARED_GOV_ABNS in lib/abr.ts. Best-effort.
+ */
+export async function notifyAdminAbnMismatch(
+  n: AbnMismatchNotice,
+): Promise<boolean> {
+  const subject = `[Kit Up] ABN needs review — ${n.schoolName}`;
+  const text = `A school signed up and passed ACARA verification (name + postcode),
+but its ABN is registered to a different entity and isn't a known shared
+government ABN. The account was created; abn_verified is false pending review.
+
+School:             ${n.schoolName}
+Postcode:           ${n.postcode ?? "—"}
+ABN provided:       ${n.abn ?? "—"}
+ABN registered to:  ${n.entityName ?? "—"}
+School id:          ${n.schoolId}
+
+If this is a legitimate shared ABN (e.g. a state education department), add it to
+SHARED_GOV_ABNS in lib/abr.ts. Otherwise follow up with the school.
+
+— Kit Up / ASF admin`;
+  const html = `<div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;color:#1a1a1a">
+    <h2 style="margin:0;color:#e5533c">Kit Up — ABN needs review</h2>
+    <p style="font-size:14px;line-height:1.5;margin:12px 0">A school passed ACARA verification (name + postcode) at sign-up, but its ABN is registered to a <strong>different entity</strong> and isn't a known shared government ABN. The account was created; <code>abn_verified</code> is false pending review.</p>
+    <table style="border-collapse:collapse;font-size:14px;margin:4px 0 12px">
+      <tr><td style="padding:3px 12px 3px 0;color:#888">School</td><td style="padding:3px 0;font-weight:600">${esc(n.schoolName)}</td></tr>
+      <tr><td style="padding:3px 12px 3px 0;color:#888">Postcode</td><td style="padding:3px 0">${esc(n.postcode ?? "—")}</td></tr>
+      <tr><td style="padding:3px 12px 3px 0;color:#888">ABN provided</td><td style="padding:3px 0">${esc(n.abn ?? "—")}</td></tr>
+      <tr><td style="padding:3px 12px 3px 0;color:#888">ABN registered to</td><td style="padding:3px 0;font-weight:600">${esc(n.entityName ?? "—")}</td></tr>
+      <tr><td style="padding:3px 12px 3px 0;color:#888">School id</td><td style="padding:3px 0;font-family:monospace;font-size:12px">${esc(n.schoolId)}</td></tr>
+    </table>
+    <p style="font-size:13px;line-height:1.5;color:#555">If this is a legitimate shared ABN (e.g. a state education department), add it to <code>SHARED_GOV_ABNS</code> in <code>lib/abr.ts</code>. Otherwise follow up with the school.</p>
+    <p style="font-size:12px;color:#999">— Kit Up / ASF admin</p>
+  </div>`;
+  return sendAdminEmail(subject, text, html);
+}
+
 export interface DonorThankYouLine {
   campaignTitle: string;
   schoolName: string | null;

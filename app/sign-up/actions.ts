@@ -4,7 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { lookupAbn, namesMatch, isSharedGovAbn } from "@/lib/abr";
 import { normalizeAbn, isValidAbn } from "@/lib/abn";
 import { fillSchoolDeliveryAddress } from "@/lib/geocode";
-import { notifyUserWelcome } from "@/lib/notify";
+import { notifyUserWelcome, notifyAdminAbnMismatch } from "@/lib/notify";
 
 /**
  * Verify a reCAPTCHA v2 token server-side (secret stays server-only). Skipped
@@ -174,12 +174,10 @@ export async function precheckSchool(input: {
     return { ok: true };
   }
 
-  if (!namesMatch(school, res.entityName, res.businessNames)) {
-    return {
-      error: `That ABN is registered to "${res.entityName}", which doesn't match the school name.`,
-    };
-  }
-
+  // ABN registered to a different entity: don't block — the ACARA name+postcode
+  // match above already proves the school. The account is allowed; the
+  // post-signup verification leaves abn_verified=false and emails admin to
+  // review (it may be another legitimate shared ABN to add to SHARED_GOV_ABNS).
   return { ok: true };
 }
 
@@ -202,7 +200,7 @@ export async function verifySchoolAbn(userId: string): Promise<{
 
   const { data: school } = await admin
     .from("schools")
-    .select("id, school, abn")
+    .select("id, school, abn, postcode")
     .eq("id", userId)
     .maybeSingle();
 
@@ -223,17 +221,32 @@ export async function verifySchoolAbn(userId: string): Promise<{
   }
 
   const active = (result.status ?? "").toLowerCase().includes("active");
+  const shared = isSharedGovAbn(school.abn);
+  const matched = namesMatch(
+    school.school,
+    result.entityName,
+    result.businessNames,
+  );
   // Shared/umbrella government ABNs (e.g. NSW Government Schools) won't match the
   // school name — an active shared ABN is verified on the ACARA match instead.
-  const verified =
-    active &&
-    (isSharedGovAbn(school.abn) ||
-      namesMatch(school.school, result.entityName, result.businessNames));
+  const verified = active && (shared || matched);
 
   await admin
     .from("schools")
     .update({ abn_verified: verified, abn_entity_name: result.entityName })
     .eq("id", userId);
+
+  // ACARA-verified school, active ABN, but registered to a different entity and
+  // not a known shared ABN → flag to admin for review (best-effort).
+  if (active && !shared && !matched) {
+    void notifyAdminAbnMismatch({
+      schoolName: school.school,
+      postcode: school.postcode ?? null,
+      abn: school.abn,
+      entityName: result.entityName,
+      schoolId: userId,
+    }).catch(() => {});
+  }
 
   return {
     checked: true,
