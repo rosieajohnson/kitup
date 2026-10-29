@@ -211,12 +211,19 @@ function SignUpForm() {
         return;
       }
     } else {
-      const name = String(form.get("name") ?? "").trim();
-      if (!name) {
-        setError("Please enter your name.");
+      const firstName = String(form.get("first_name") ?? "").trim();
+      const lastName = String(form.get("last_name") ?? "").trim();
+      if (!firstName || !lastName) {
+        setError("Please enter your first and last name.");
         return;
       }
-      metadata = { role, name, age_confirmed_at: nowISO };
+      metadata = {
+        role,
+        name: `${firstName} ${lastName}`,
+        first_name: firstName,
+        last_name: lastName,
+        age_confirmed_at: nowISO,
+      };
     }
 
     setLoading(true);
@@ -326,14 +333,24 @@ function SignUpForm() {
           onSubmit={onSubmit}
         >
           {role === "donor" ? (
-            <Field
-              id="name"
-              label="Your name"
-              type="text"
-              autoComplete="name"
-              required
-              placeholder="Alex Donor"
-            />
+            <div className="grid grid-cols-2 gap-3">
+              <Field
+                id="first_name"
+                label="First name"
+                type="text"
+                autoComplete="given-name"
+                required
+                placeholder="Alex"
+              />
+              <Field
+                id="last_name"
+                label="Last name"
+                type="text"
+                autoComplete="family-name"
+                required
+                placeholder="Donor"
+              />
+            </div>
           ) : (
             <>
               <div>

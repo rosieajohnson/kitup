@@ -42,7 +42,8 @@ export function CartDrawer() {
   const [error, setError] = useState<string | null>(null);
 
   // Guest checkout details (only used when not signed in).
-  const [name, setName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [createAccount, setCreateAccount] = useState(true);
   const [password, setPassword] = useState("");
@@ -93,8 +94,8 @@ export function CartDrawer() {
 
     let guest: GuestInput | undefined;
     if (!signedInDonor) {
-      if (!name.trim() || !EMAIL_RE.test(email.trim())) {
-        setError("Enter your name and a valid email to donate.");
+      if (!firstName.trim() || !lastName.trim() || !EMAIL_RE.test(email.trim())) {
+        setError("Enter your first name, last name and a valid email to donate.");
         return;
       }
       // Only offer account creation when the email is new.
@@ -107,7 +108,8 @@ export function CartDrawer() {
         }
       }
       guest = {
-        name: name.trim(),
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
         email: email.trim(),
         password,
         createAccount: wantAccount,
@@ -344,14 +346,24 @@ export function CartDrawer() {
                     (for your receipt)
                   </span>
                 </p>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Your name"
-                  autoComplete="name"
-                  className="w-full rounded-md border border-line-strong bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:border-coral focus:outline-none focus:ring-2 focus:ring-coral/30"
-                />
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    placeholder="First name"
+                    autoComplete="given-name"
+                    className="w-full rounded-md border border-line-strong bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:border-coral focus:outline-none focus:ring-2 focus:ring-coral/30"
+                  />
+                  <input
+                    type="text"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    placeholder="Last name"
+                    autoComplete="family-name"
+                    className="w-full rounded-md border border-line-strong bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:border-coral focus:outline-none focus:ring-2 focus:ring-coral/30"
+                  />
+                </div>
                 <input
                   type="email"
                   value={email}

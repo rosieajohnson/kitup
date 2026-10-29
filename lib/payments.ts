@@ -22,6 +22,13 @@ import { acaraMatchForSchool, DEMOGRAPHICS_READY } from "@/lib/geocode";
  */
 export const PURCHASE_CONTACT_READY = true;
 
+/**
+ * Separate donor first/last name (migration 0035). Gated OFF until applied —
+ * flip to true afterwards so guest first/last are persisted and the donor CSV
+ * reads them.
+ */
+export const DONOR_NAME_SPLIT_READY = true;
+
 interface CartMapLine {
   i: string; // item_id
   c: string; // campaign_id
@@ -66,6 +73,8 @@ export async function recordPurchasesFromSession(
   const anonymous = meta.anonymous === "1";
   const business = (meta.business || "").trim() || null;
   const postcode = (meta.postcode || "").trim() || null;
+  const guestFirstName = (meta.guest_first_name || "").trim() || null;
+  const guestLastName = (meta.guest_last_name || "").trim() || null;
   // Need either an account or guest contact to attribute the donation.
   if (!donorId && !guestEmail) return 0;
 
@@ -96,6 +105,13 @@ export async function recordPurchasesFromSession(
       amount: l.a,
       // Optional donor business + postcode (migration 0034). Gated until applied.
       ...(PURCHASE_CONTACT_READY ? { business, postcode } : {}),
+      // Guest first/last name (migration 0035). Gated until applied.
+      ...(DONOR_NAME_SPLIT_READY
+        ? {
+            guest_first_name: donorId ? null : guestFirstName,
+            guest_last_name: donorId ? null : guestLastName,
+          }
+        : {}),
     }));
   if (rows.length === 0) return 0;
 

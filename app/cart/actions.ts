@@ -14,7 +14,8 @@ export interface CartLineInput {
 }
 
 export interface GuestInput {
-  name: string;
+  firstName: string;
+  lastName: string;
   email: string;
   password: string;
   createAccount: boolean;
@@ -55,6 +56,8 @@ export async function createCheckoutSession(
 
   let donorId: string | null = null;
   let guestName: string | null = null;
+  let guestFirstName: string | null = null;
+  let guestLastName: string | null = null;
   let guestEmail: string | null = null;
   let receiptEmail: string | undefined;
 
@@ -71,10 +74,13 @@ export async function createCheckoutSession(
     donorId = user.id;
     receiptEmail = donor.contact_email ?? user.email ?? undefined;
   } else {
-    // Guest checkout — need name + email.
-    const name = guest?.name?.trim() ?? "";
+    // Guest checkout — need first + last name + email.
+    const firstName = guest?.firstName?.trim() ?? "";
+    const lastName = guest?.lastName?.trim() ?? "";
+    const name = `${firstName} ${lastName}`.trim();
     const email = guest?.email?.trim() ?? "";
-    if (!name || !email) return { error: "Enter your name and email to donate." };
+    if (!firstName || !lastName || !email)
+      return { error: "Enter your first name, last name and email to donate." };
     if (!EMAIL_RE.test(email)) return { error: "Please enter a valid email address." };
     receiptEmail = email;
 
@@ -101,12 +107,19 @@ export async function createCheckoutSession(
           email,
           password,
           email_confirm: true,
-          user_metadata: { role: "donor", name },
+          user_metadata: {
+            role: "donor",
+            name,
+            first_name: firstName,
+            last_name: lastName,
+          },
         });
       if (createErr || !created?.user) {
         // Email likely already registered (e.g. as a school) — fall back
         // to recording as a guest so the donation still goes through.
         guestName = name;
+        guestFirstName = firstName;
+        guestLastName = lastName;
         guestEmail = email;
       } else {
         donorId = created.user.id;
@@ -114,6 +127,8 @@ export async function createCheckoutSession(
     } else {
       // Opted out — pure guest donation.
       guestName = name;
+      guestFirstName = firstName;
+      guestLastName = lastName;
       guestEmail = email;
     }
   }
@@ -216,6 +231,8 @@ export async function createCheckoutSession(
   const metadata: Record<string, string> = {
     donor_id: donorId ?? "",
     guest_name: guestName ?? "",
+    guest_first_name: guestFirstName ?? "",
+    guest_last_name: guestLastName ?? "",
     guest_email: guestEmail ?? "",
     anonymous: anonymous ? "1" : "",
     business: (businessName ?? "").trim().slice(0, 200),

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getViewer } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
-import { PURCHASE_CONTACT_READY } from "@/lib/payments";
+import { PURCHASE_CONTACT_READY, DONOR_NAME_SPLIT_READY } from "@/lib/payments";
 
 /**
  * Admin-only CSV export of donations in the ASF bulk-upload template format,
@@ -38,7 +38,12 @@ type Row = {
   stripe_checkout_session_id: string | null;
   business?: string | null;
   postcode?: string | null;
-  donor: { name: string | null; contact_email: string | null } | { name: string | null; contact_email: string | null }[] | null;
+  guest_first_name?: string | null;
+  guest_last_name?: string | null;
+  donor:
+    | { name: string | null; contact_email: string | null; first_name?: string | null; last_name?: string | null }
+    | { name: string | null; contact_email: string | null; first_name?: string | null; last_name?: string | null }[]
+    | null;
 };
 
 export async function GET() {
@@ -59,8 +64,11 @@ export async function GET() {
   const { data, error } = await admin
     .from("purchases")
     .select(
-      "id, created_at, amount, campaign_id, anonymous, guest_name, guest_email, stripe_checkout_session_id, donor:donors(name, contact_email)" +
-        (PURCHASE_CONTACT_READY ? ", business, postcode" : ""),
+      "id, created_at, amount, campaign_id, anonymous, guest_name, guest_email, stripe_checkout_session_id, donor:donors(name, contact_email" +
+        (DONOR_NAME_SPLIT_READY ? ", first_name, last_name" : "") +
+        ")" +
+        (PURCHASE_CONTACT_READY ? ", business, postcode" : "") +
+        (DONOR_NAME_SPLIT_READY ? ", guest_first_name, guest_last_name" : ""),
     )
     .is("refunded_at", null)
     .order("created_at", { ascending: true });
@@ -83,6 +91,8 @@ export async function GET() {
   type Agg = {
     date: string;
     name: string;
+    firstName: string;
+    lastName: string;
     email: string;
     business: string;
     postcode: string;
@@ -96,6 +106,10 @@ export async function GET() {
     const donor = Array.isArray(p.donor) ? p.donor[0] : p.donor;
     const name = (donor?.name ?? p.guest_name ?? "").trim();
     const email = (donor?.contact_email ?? p.guest_email ?? "").trim();
+    // Prefer the separately-captured first/last (migration 0035); fall back to
+    // splitting the combined name for historical donations.
+    const first = (donor?.first_name ?? p.guest_first_name ?? "").trim();
+    const last = (donor?.last_name ?? p.guest_last_name ?? "").trim();
     const sessionKey = p.stripe_checkout_session_id || `p:${p.id}`;
     const key = `${sessionKey}::${p.campaign_id}`;
     const amount = Number(p.amount) || 0;
@@ -105,10 +119,14 @@ export async function GET() {
       if (p.created_at < existing.date) existing.date = p.created_at;
       existing.business ||= (p.business ?? "").trim();
       existing.postcode ||= (p.postcode ?? "").trim();
+      existing.firstName ||= first;
+      existing.lastName ||= last;
     } else {
       byKey.set(key, {
         date: p.created_at,
         name,
+        firstName: first,
+        lastName: last,
         email,
         business: (p.business ?? "").trim(),
         postcode: (p.postcode ?? "").trim(),
@@ -145,9 +163,15 @@ export async function GET() {
   };
   const lines = [header.join(",")];
   for (const r of rows) {
-    const parts = r.name.split(/\s+/).filter(Boolean);
-    const firstName = parts[0] ?? "";
-    const lastName = parts.slice(1).join(" ");
+    // Use the captured first/last; fall back to splitting the combined name
+    // (historical rows) at the first space.
+    let firstName = r.firstName;
+    let lastName = r.lastName;
+    if (!firstName && !lastName) {
+      const parts = r.name.split(/\s+/).filter(Boolean);
+      firstName = parts[0] ?? "";
+      lastName = parts.slice(1).join(" ");
+    }
     lines.push(
       [
         csvCell(auDate(r.date)),
