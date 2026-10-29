@@ -1,7 +1,7 @@
 "use server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { lookupAbn, namesMatch } from "@/lib/abr";
+import { lookupAbn, namesMatch, isSharedGovAbn } from "@/lib/abr";
 import { normalizeAbn, isValidAbn } from "@/lib/abn";
 import { fillSchoolDeliveryAddress } from "@/lib/geocode";
 import { notifyUserWelcome } from "@/lib/notify";
@@ -159,6 +159,21 @@ export async function precheckSchool(input: {
         "That ABN couldn't be verified with the Australian Business Register — check the number.",
     };
   }
+  const active = (res.status ?? "").toLowerCase().includes("active");
+
+  // Shared/umbrella government ABN (e.g. NSW Government Schools) — the ABR entity
+  // is the department, not the school, so we rely on the ACARA match above
+  // instead of a name match. Just require the ABN to be active.
+  if (isSharedGovAbn(abn)) {
+    if (!active) {
+      return {
+        error:
+          "That ABN is not active on the Australian Business Register — check the number.",
+      };
+    }
+    return { ok: true };
+  }
+
   if (!namesMatch(school, res.entityName, res.businessNames)) {
     return {
       error: `That ABN is registered to "${res.entityName}", which doesn't match the school name.`,
@@ -208,8 +223,12 @@ export async function verifySchoolAbn(userId: string): Promise<{
   }
 
   const active = (result.status ?? "").toLowerCase().includes("active");
+  // Shared/umbrella government ABNs (e.g. NSW Government Schools) won't match the
+  // school name — an active shared ABN is verified on the ACARA match instead.
   const verified =
-    active && namesMatch(school.school, result.entityName, result.businessNames);
+    active &&
+    (isSharedGovAbn(school.abn) ||
+      namesMatch(school.school, result.entityName, result.businessNames));
 
   await admin
     .from("schools")

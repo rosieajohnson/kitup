@@ -72,6 +72,23 @@ export async function lookupAbn(rawAbn: string): Promise<AbrResult> {
   }
 }
 
+/**
+ * Government/umbrella ABNs shared by many schools, where the ABR entity name is
+ * the department (not the individual school) and no per-school trading names are
+ * returned. For these, a school's identity is established by the ACARA
+ * name+postcode match (required before the ABN step), NOT by an ABN entity-name
+ * match — so the name match is waived (the ABN still must be valid + active).
+ * Keyed by normalised 11-digit ABN. Add other states' shared ABNs as found.
+ */
+export const SHARED_GOV_ABNS: Record<string, string> = {
+  "18246198266": "NSW Government Schools",
+};
+
+/** True if this ABN is a known shared/umbrella government-schools ABN. */
+export function isSharedGovAbn(rawAbn: string): boolean {
+  return normalizeAbn(rawAbn) in SHARED_GOV_ABNS;
+}
+
 /** Normalise a name for comparison: upper-case, expand common school
  *  abbreviations, and drop generic words so distinctive tokens remain. */
 function normName(s: string): string {
