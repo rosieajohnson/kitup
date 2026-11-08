@@ -239,7 +239,19 @@ export function CampaignForm({
     "w-full rounded-lg border border-line-strong bg-canvas px-3.5 py-2.5 text-sm text-ink placeholder:text-ink-faint focus:border-coral focus:outline-none focus:ring-2 focus:ring-coral/30";
 
   return (
-    <form onSubmit={onSubmit} className="mt-8 space-y-8">
+    <form
+      onSubmit={onSubmit}
+      onKeyDown={(e) => {
+        // Pressing Enter in a single-line input would otherwise submit (and
+        // save) the whole campaign — e.g. while searching the catalogue or
+        // typing a quantity. Block it on inputs; the textarea (newlines) and the
+        // explicit "Create/Save" button are unaffected, so the form is only
+        // submitted deliberately.
+        const el = e.target as HTMLElement;
+        if (e.key === "Enter" && el.tagName === "INPUT") e.preventDefault();
+      }}
+      className="mt-8 space-y-8"
+    >
       {(disabled || notice) && (
         <p className="flex items-start gap-2 rounded-xl border border-line bg-surface-sunk/60 p-4 text-sm text-ink-soft">
           <Info className="mt-0.5 h-4 w-4 shrink-0 text-ink-faint" aria-hidden />
