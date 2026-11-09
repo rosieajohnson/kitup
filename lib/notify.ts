@@ -36,7 +36,12 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://kitup.tech";
 // One-line "what is Kit Up" blurb for emails to people new to the platform.
 const KITUP_BLURB_TEXT =
   "Kit Up is a crowdfunding platform where Australian schools list the sports gear they need and their community funds it, item by item. Donations are processed by the Australian Sports Foundation, so gifts of $2 or more are tax deductible.";
-const KITUP_BLURB_HTML = `<p style="font-size:13px;line-height:1.5;color:#555;margin:12px 0;padding:12px 14px;background:#f7f7f5;border-radius:8px">Kit Up is a crowdfunding platform where Australian schools list the sports gear they need and their community funds it, item by item. Donations are processed by the Australian Sports Foundation, so gifts of $2 or more are tax deductible.</p>`;
+const KITUP_BLURB_HTML = `<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin:12px 0;background:#f7f7f5;border-radius:8px">
+    <tr>
+      <td style="padding:12px 0 12px 14px;vertical-align:top;width:54px"><img src="${APP_URL}/email/kitup-icon.png" width="40" height="40" alt="Kit Up" style="display:block;border-radius:9px"/></td>
+      <td style="padding:12px 14px 12px 12px;vertical-align:middle;font-size:13px;line-height:1.5;color:#555">Kit Up is a crowdfunding platform where Australian schools list the sports gear they need and their community funds it, item by item. Donations are processed by the Australian Sports Foundation, so gifts of $2 or more are tax deductible.</td>
+    </tr>
+  </table>`;
 
 function money(n: number): string {
   return new Intl.NumberFormat("en-AU", {
