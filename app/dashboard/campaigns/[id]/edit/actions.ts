@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
-import { resolveActiveSchool } from "@/lib/team";
+import { resolveActiveSchool, canManageSchool } from "@/lib/team";
 import { impactColumns, type ImpactValues } from "@/lib/campaign-fields";
 
 export interface EditItemInput {
@@ -204,6 +204,9 @@ export async function deleteCampaign(
 
   const active = await resolveActiveSchool(supabase, user.id);
   if (!active) return { error: "You can only delete your own school's campaigns." };
+  if (!canManageSchool(active.role)) {
+    return { error: "Only the school owner can delete a campaign." };
+  }
 
   const { data: owned } = await supabase
     .from("campaigns")
