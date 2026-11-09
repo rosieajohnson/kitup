@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { LayoutDashboard } from "lucide-react";
 import { Wordmark } from "@/components/wordmark";
 import { Button } from "@/components/ui/button";
 import { SignOutButton } from "@/components/sign-out-button";
@@ -66,9 +67,16 @@ export async function SiteHeader() {
               )}
             </Link>
           )}
+          {viewer.schoolId && (
+            <Link href="/dashboard" className="hidden sm:block">
+              <Button variant="ghost" size="sm">
+                <LayoutDashboard className="h-4 w-4" aria-hidden /> Dashboard
+              </Button>
+            </Link>
+          )}
           <CartButton />
           {signedIn ? (
-            <SignOutButton isSchool={viewer.role === "school"} />
+            <SignOutButton isSchool={Boolean(viewer.schoolId)} />
           ) : (
             <Link href="/sign-in" className="hidden sm:block">
               <Button variant="ghost" size="sm">
