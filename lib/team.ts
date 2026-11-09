@@ -7,7 +7,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  * resolution + the invite UI. While off, only the school OWNER (schools.id =
  * auth.uid()) is ever resolved, so behaviour is identical to single-login.
  */
-export const TEAM_ACCESS_READY = false;
+export const TEAM_ACCESS_READY = true;
 
 export type SchoolRole = "owner" | "editor" | "contributor";
 
