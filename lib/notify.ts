@@ -1011,16 +1011,16 @@ ${n.setupLink}
 
 (The link expires in about an hour. If it has, use "Forgot password" at ${APP_URL}/sign-in with this email address.)
 
-${KITUP_BLURB_TEXT}
+— The Kit Up team
 
-— The Kit Up team`;
+${KITUP_BLURB_TEXT}`;
   const html = `<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;color:#1a1a1a">
     <h2 style="margin:0 0 4px;color:#e5533c">You've been invited to Kit Up</h2>
     <p style="font-size:15px;line-height:1.5;margin:12px 0">You've been added as <strong>${esc(n.roleLabel)}</strong> for <strong>${esc(n.schoolName)}</strong> on Kit Up — the platform the school uses to raise sports gear.</p>
-    ${KITUP_BLURB_HTML}
     <p style="margin:18px 0"><a href="${esc(n.setupLink)}" style="display:inline-block;background:#e5533c;color:#fff;text-decoration:none;font-weight:bold;font-size:15px;padding:11px 20px;border-radius:9999px">Set your password</a></p>
     <p style="font-size:13px;line-height:1.5;color:#555;margin:12px 0">The link expires in about an hour. If it has, use "Forgot password" at <a href="${APP_URL}/sign-in">${APP_URL}/sign-in</a> with this email address.</p>
     <p style="font-size:14px;margin:18px 0 2px">— The Kit Up team</p>
+    ${KITUP_BLURB_HTML}
   </div>`;
   return sendEmail(n.email, subject, text, html, KITUP_FROM_EMAIL);
 }
@@ -1037,15 +1037,15 @@ export async function notifyMemberAdded(n: {
 You now have ${n.roleLabel} access to ${n.schoolName} on Kit Up. Sign in with this email to manage its campaigns:
 ${APP_URL}/sign-in
 
-${KITUP_BLURB_TEXT}
+— The Kit Up team
 
-— The Kit Up team`;
+${KITUP_BLURB_TEXT}`;
   const html = `<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;color:#1a1a1a">
     <h2 style="margin:0 0 4px;color:#e5533c">You've been added to ${esc(n.schoolName)}</h2>
     <p style="font-size:15px;line-height:1.5;margin:12px 0">You now have <strong>${esc(n.roleLabel)}</strong> access to <strong>${esc(n.schoolName)}</strong> on Kit Up.</p>
-    ${KITUP_BLURB_HTML}
     <p style="margin:18px 0"><a href="${APP_URL}/sign-in" style="display:inline-block;background:#e5533c;color:#fff;text-decoration:none;font-weight:bold;font-size:15px;padding:11px 20px;border-radius:9999px">Sign in</a></p>
     <p style="font-size:14px;margin:18px 0 2px">— The Kit Up team</p>
+    ${KITUP_BLURB_HTML}
   </div>`;
   return sendEmail(n.email, subject, text, html, KITUP_FROM_EMAIL);
 }
