@@ -97,8 +97,8 @@ export function TeamManager({ members }: { members: Member[] }) {
               onChange={(e) => setRole(e.target.value as Role)}
               className={inputCls}
             >
-              <option value="contributor">Contributor (build only)</option>
-              <option value="editor">Editor (build + publish)</option>
+              <option value="contributor">Contributor (create / edit)</option>
+              <option value="editor">Editor (create / edit + publish)</option>
             </select>
           </div>
           <Button type="submit" disabled={pending}>

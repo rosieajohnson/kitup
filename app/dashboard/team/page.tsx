@@ -49,9 +49,10 @@ export default async function TeamPage() {
       </h1>
       <p className="mt-2 max-w-2xl text-ink-soft">
         Invite colleagues to help manage {viewer.name ?? "your school"}.{" "}
-        <strong>Editors</strong> can build campaigns and publish/close them;{" "}
-        <strong>contributors</strong> can build campaigns but not publish or close
-        them. Only you (the owner) can manage the team and the school profile.
+        <strong>Editors</strong> can create / edit campaigns and publish/close
+        them; <strong>contributors</strong> can create / edit campaigns but not
+        publish or close them. Only you (the owner) can manage the team and the
+        school profile.
       </p>
 
       <div className="mt-8 max-w-2xl">

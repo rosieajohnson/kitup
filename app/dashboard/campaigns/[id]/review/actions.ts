@@ -8,7 +8,7 @@ import { resolveActiveSchool, canPublish } from "@/lib/team";
 
 /**
  * Publish a draft campaign ("go live"). Only owners and editors may do this
- * (contributors can build but not publish) — enforced here AND by the DB
+ * (contributors can create/edit but not publish) — enforced here AND by the DB
  * trigger on campaigns.status. On success it redirects to the public page.
  */
 export async function publishCampaign(
@@ -29,7 +29,7 @@ export async function publishCampaign(
   if (!canPublish(active.role)) {
     return {
       error:
-        "Contributors can build campaigns but can't publish them — ask an editor or owner to post it.",
+        "Contributors can create and edit campaigns but can't publish them — ask an editor or owner to post it.",
     };
   }
 
