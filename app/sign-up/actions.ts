@@ -123,8 +123,11 @@ export async function precheckSchool(input: {
   });
   const status: string = check?.status ?? "unverified";
   if (status !== "match") {
-    // Offer the ACARA-listed schools at that postcode so the user can pick.
+    // Offer the closest-named ACARA schools at that postcode ("did you mean …"),
+    // ranked by name similarity to what they typed, so a typo surfaces the right
+    // school to click.
     const { data: sugg } = await admin.rpc("suggest_school", {
+      p_school: school,
       p_address: null,
       p_suburb: input.suburb.trim() || null,
       p_postcode: postcode,
