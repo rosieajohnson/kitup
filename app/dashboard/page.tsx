@@ -6,6 +6,7 @@ import { SchoolCampaignList } from "@/components/school-campaign-list";
 import { getCampaignsBySchool } from "@/lib/data";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
+import { resolveActiveSchool } from "@/lib/team";
 
 export const metadata = { title: "School dashboard" };
 
@@ -22,15 +23,18 @@ export default async function DashboardPage() {
     } = await supabase.auth.getUser();
     if (!user) redirect("/sign-in");
 
+    // The school this user manages (their own, or one they're a member of).
+    const active = await resolveActiveSchool(supabase, user.id);
+    if (!active) redirect("/"); // not a school account/member (e.g. a donor)
+
     const { data: school } = await supabase
       .from("schools")
       .select("school")
-      .eq("id", user.id)
+      .eq("id", active.schoolId)
       .single();
-    // Signed in but not a school account (e.g. a donor) — send home.
     if (!school) redirect("/");
 
-    schoolId = user.id;
+    schoolId = active.schoolId;
     schoolName = school.school;
   }
 

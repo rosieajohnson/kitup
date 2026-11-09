@@ -22,7 +22,7 @@ export default async function ReviewCampaignPage({ params }: Params) {
 
   const campaign = await getCampaign(id);
   // RLS lets the owner read its own draft; anyone else gets null here.
-  if (!campaign || campaign.school.id !== viewer.userId) notFound();
+  if (!campaign || campaign.school.id !== viewer.schoolId) notFound();
 
   // Already public — nothing to confirm.
   if (campaign.status === "live") redirect(`/campaigns/${id}`);

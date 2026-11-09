@@ -4,6 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { getCatalogue } from "@/lib/data";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
+import { resolveActiveSchool } from "@/lib/team";
 import { CampaignForm } from "@/components/campaign-form";
 
 export const metadata = { title: "New campaign" };
@@ -17,12 +18,9 @@ export default async function NewCampaignPage() {
     } = await supabase.auth.getUser();
     if (!user) redirect("/sign-in");
 
-    const { data: school } = await supabase
-      .from("schools")
-      .select("id")
-      .eq("id", user.id)
-      .single();
-    if (!school) redirect("/");
+    // Any school member (owner/editor/contributor) may build a campaign.
+    const active = await resolveActiveSchool(supabase, user.id);
+    if (!active) redirect("/");
   }
 
   const catalogue = await getCatalogue();

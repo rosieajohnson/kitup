@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
+import { resolveActiveSchool } from "@/lib/team";
 import { impactColumns, type ImpactValues } from "@/lib/campaign-fields";
 
 export interface NewItemInput {
@@ -67,12 +68,8 @@ export async function createCampaign(
   } = await supabase.auth.getUser();
   if (!user) return { error: "You need to sign in as a school." };
 
-  const { data: school } = await supabase
-    .from("schools")
-    .select("id")
-    .eq("id", user.id)
-    .single();
-  if (!school) return { error: "Only school accounts can create campaigns." };
+  const active = await resolveActiveSchool(supabase, user.id);
+  if (!active) return { error: "Only school accounts can create campaigns." };
 
   const { data: campaign, error: campaignError } = await supabase
     .from("campaigns")
@@ -82,7 +79,7 @@ export async function createCampaign(
       cover_image: input.cover_image || null,
       funding_goal,
       deadline: deadline.toISOString(),
-      school_id: user.id,
+      school_id: active.schoolId,
       ...impactColumns(input.impact),
     })
     .select("id")

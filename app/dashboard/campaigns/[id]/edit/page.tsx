@@ -26,7 +26,7 @@ export default async function EditCampaignPage({ params }: Params) {
 
   const campaign = await getCampaign(id);
   // Owner-only (RLS lets the owner read its own draft/live campaign).
-  if (!campaign || campaign.school.id !== viewer.userId) notFound();
+  if (!campaign || campaign.school.id !== viewer.schoolId) notFound();
 
   const catalogue = await getCatalogue();
 

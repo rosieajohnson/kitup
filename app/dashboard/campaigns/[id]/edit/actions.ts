@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
+import { resolveActiveSchool } from "@/lib/team";
 import { impactColumns, type ImpactValues } from "@/lib/campaign-fields";
 
 export interface EditItemInput {
@@ -59,12 +60,15 @@ export async function updateCampaign(
   } = await supabase.auth.getUser();
   if (!user) return { error: "Sign in as the owning school." };
 
-  // Confirm ownership.
+  const active = await resolveActiveSchool(supabase, user.id);
+  if (!active) return { error: "You can only edit your own school's campaigns." };
+
+  // Confirm the campaign belongs to this user's school.
   const { data: owned } = await supabase
     .from("campaigns")
     .select("id")
     .eq("id", input.campaignId)
-    .eq("school_id", user.id)
+    .eq("school_id", active.schoolId)
     .single();
   if (!owned) return { error: "You can only edit your own campaigns." };
 
@@ -198,11 +202,14 @@ export async function deleteCampaign(
   } = await supabase.auth.getUser();
   if (!user) return { error: "Sign in as the owning school." };
 
+  const active = await resolveActiveSchool(supabase, user.id);
+  if (!active) return { error: "You can only delete your own school's campaigns." };
+
   const { data: owned } = await supabase
     .from("campaigns")
     .select("id")
     .eq("id", campaignId)
-    .eq("school_id", user.id)
+    .eq("school_id", active.schoolId)
     .single();
   if (!owned) return { error: "You can only delete your own campaigns." };
 
@@ -224,7 +231,7 @@ export async function deleteCampaign(
     .from("campaigns")
     .delete()
     .eq("id", campaignId)
-    .eq("school_id", user.id);
+    .eq("school_id", active.schoolId);
   if (error) return { error: error.message };
 
   revalidatePath("/");

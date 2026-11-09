@@ -4,11 +4,12 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
+import { resolveActiveSchool, canPublish } from "@/lib/team";
 
 /**
- * Publish a draft campaign ("go live"). Only the owning school may do
- * this (RLS enforces auth.uid() = school_id on the update). On success
- * it redirects to the now-public campaign page.
+ * Publish a draft campaign ("go live"). Only owners and editors may do this
+ * (contributors can build but not publish) — enforced here AND by the DB
+ * trigger on campaigns.status. On success it redirects to the public page.
  */
 export async function publishCampaign(
   campaignId: string,
@@ -23,11 +24,20 @@ export async function publishCampaign(
   } = await supabase.auth.getUser();
   if (!user) return { error: "Sign in as the owning school." };
 
+  const active = await resolveActiveSchool(supabase, user.id);
+  if (!active) return { error: "You can only publish your own school's campaigns." };
+  if (!canPublish(active.role)) {
+    return {
+      error:
+        "Contributors can build campaigns but can't publish them — ask an editor or owner to post it.",
+    };
+  }
+
   const { data, error } = await supabase
     .from("campaigns")
     .update({ status: "live" })
     .eq("id", campaignId)
-    .eq("school_id", user.id)
+    .eq("school_id", active.schoolId)
     .select("id")
     .single();
 

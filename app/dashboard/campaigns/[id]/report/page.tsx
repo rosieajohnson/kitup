@@ -19,7 +19,7 @@ export default async function CampaignReportPage({ params }: Params) {
   if (!viewer.userId) redirect("/sign-in");
 
   const campaign = await getCampaign(id);
-  const isOwner = Boolean(campaign && campaign.school.id === viewer.userId);
+  const isOwner = Boolean(campaign && campaign.school.id === viewer.schoolId);
   // Owning school or ASF admin only.
   if (!isOwner && !viewer.isAdmin) notFound();
 
