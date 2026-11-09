@@ -20,6 +20,10 @@ export interface CartLine {
   quantity: number;
   /** How many of this item the campaign still needs (the cap). */
   maxQuantity: number;
+  /** Per-dollar mode: the contribution in dollars (overrides unitCost×quantity). */
+  amount?: number;
+  /** Per-dollar mode: dollars still needed to fully fund the item (the cap). */
+  maxAmount?: number;
 }
 
 interface CartContextValue {
@@ -33,6 +37,8 @@ interface CartContextValue {
   close: () => void;
   addLine: (line: CartLine) => void;
   setQuantity: (itemId: string, quantity: number) => void;
+  /** Per-dollar mode: set a line's contribution (clamped to its maxAmount). */
+  setAmount: (itemId: string, amount: number) => void;
   removeLine: (itemId: string) => void;
   clear: () => void;
 }
@@ -76,15 +82,31 @@ export function CartProvider({
   }, [lines, hydrated]);
 
   const addLine = useCallback((line: CartLine) => {
-    const cap = line.maxQuantity > 0 ? line.maxQuantity : line.quantity;
     setLines((prev) => {
       const existing = prev.find((l) => l.itemId === line.itemId);
+      // Per-dollar mode: dedupe by item and ADD contributions, capped at maxAmount.
+      if (line.amount != null) {
+        const cap = line.maxAmount && line.maxAmount > 0 ? line.maxAmount : line.amount;
+        if (existing) {
+          return prev.map((l) =>
+            l.itemId === line.itemId
+              ? {
+                  ...l,
+                  amount: Math.min((l.amount ?? 0) + (line.amount ?? 0), cap),
+                  maxAmount: line.maxAmount,
+                }
+              : l,
+          );
+        }
+        return [...prev, { ...line, amount: Math.min(line.amount, cap) }];
+      }
+      // Whole-unit mode.
+      const cap = line.maxQuantity > 0 ? line.maxQuantity : line.quantity;
       if (existing) {
         return prev.map((l) =>
           l.itemId === line.itemId
             ? {
                 ...l,
-                // Never exceed what the campaign still needs.
                 quantity: Math.min(l.quantity + line.quantity, cap),
                 maxQuantity: line.maxQuantity,
               }
@@ -107,6 +129,18 @@ export function CartProvider({
     );
   }, []);
 
+  const setAmount = useCallback((itemId: string, amount: number) => {
+    setLines((prev) =>
+      prev
+        .map((l) => {
+          if (l.itemId !== itemId) return l;
+          const cap = l.maxAmount && l.maxAmount > 0 ? l.maxAmount : amount;
+          return { ...l, amount: Math.min(Math.max(0, amount), cap) };
+        })
+        .filter((l) => (l.amount ?? 0) > 0),
+    );
+  }, []);
+
   const removeLine = useCallback((itemId: string) => {
     setLines((prev) => prev.filter((l) => l.itemId !== itemId));
   }, []);
@@ -125,11 +159,15 @@ export function CartProvider({
   const close = useCallback(() => setIsOpen(false), []);
 
   const count = useMemo(
-    () => lines.reduce((sum, l) => sum + l.quantity, 0),
+    () => lines.reduce((sum, l) => sum + (l.amount != null ? 1 : l.quantity), 0),
     [lines],
   );
   const total = useMemo(
-    () => lines.reduce((sum, l) => sum + l.unitCost * l.quantity, 0),
+    () =>
+      lines.reduce(
+        (sum, l) => sum + (l.amount != null ? l.amount : l.unitCost * l.quantity),
+        0,
+      ),
     [lines],
   );
 
@@ -144,6 +182,7 @@ export function CartProvider({
     close,
     addLine,
     setQuantity,
+    setAmount,
     removeLine,
     clear,
   };

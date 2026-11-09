@@ -6,11 +6,14 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { getStripe, isStripeConfigured } from "@/lib/stripe";
 import { computeFees } from "@/lib/fees";
+import { PARTIAL_FUNDING_READY, MIN_CONTRIBUTION } from "@/lib/funding";
 
 export interface CartLineInput {
   itemId: string;
   campaignId: string;
   quantity: number;
+  /** Per-dollar mode: the dollar contribution toward this item. */
+  amount?: number;
 }
 
 export interface GuestInput {
@@ -172,12 +175,46 @@ export async function createCheckoutSession(
       };
     }
 
-    // Don't let anyone fund more than the campaign still needs.
+    // Current funding for this item (units + dollars).
     const { data: funding } = await db
       .from("item_funding")
-      .select("quantity_funded")
+      .select("quantity_funded, amount_raised")
       .eq("item_id", item.id)
       .maybeSingle();
+
+    // --- Per-dollar contribution (PARTIAL_FUNDING_READY) ---
+    if (PARTIAL_FUNDING_READY && line.amount != null) {
+      const unit = Number(item.cost);
+      const totalCost = Math.round(unit * item.quantity_needed * 100) / 100;
+      const raised = funding ? Number(funding.amount_raised) : 0;
+      const remainingCost = Math.round((totalCost - raised) * 100) / 100;
+      if (remainingCost <= 0) {
+        return {
+          error: `"${item.title}" is already fully funded — please remove it from your cart.`,
+        };
+      }
+      let amt = Math.round(Number(line.amount) * 100) / 100;
+      if (!amt || amt < MIN_CONTRIBUTION) {
+        return {
+          error: `Contributions to "${item.title}" must be at least $${MIN_CONTRIBUTION}.`,
+        };
+      }
+      if (amt > remainingCost) amt = remainingCost; // never over-fund
+      const cents = Math.round(amt * 100);
+      if (cents <= 0) continue;
+      lineItems.push({
+        quantity: 1,
+        price_data: {
+          currency: "aud",
+          product_data: { name: `Contribution: ${item.title}` },
+          unit_amount: cents,
+        },
+      });
+      mapping.push({ i: item.id, c: item.campaign_id, q: 1, a: cents / 100 });
+      continue;
+    }
+
+    // --- Whole-unit funding ---
     const funded = funding ? Number(funding.quantity_funded) : 0;
     const remaining = Math.max(0, item.quantity_needed - funded);
     if (quantity > remaining) {

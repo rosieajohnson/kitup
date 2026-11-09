@@ -127,6 +127,7 @@ export function CartDrawer() {
           itemId: l.itemId,
           campaignId: l.campaignId,
           quantity: l.quantity,
+          amount: l.amount,
         })),
         guest,
         anonymous,
@@ -209,34 +210,42 @@ export function CartDrawer() {
                         </button>
                       </div>
                       <div className="mt-2 flex items-center justify-between">
-                        <div className="inline-flex items-center rounded-full border border-line-strong bg-canvas">
-                          <button
-                            type="button"
-                            aria-label="One fewer"
-                            onClick={() =>
-                              setQuantity(l.itemId, l.quantity - 1)
-                            }
-                            className="grid h-8 w-8 place-items-center rounded-full text-ink hover:bg-surface-sunk"
-                          >
-                            <Minus className="h-3.5 w-3.5" aria-hidden />
-                          </button>
-                          <span className="w-7 text-center text-sm font-bold tabular-nums">
-                            {l.quantity}
+                        {l.amount != null ? (
+                          <span className="text-sm text-ink-soft">
+                            Contribution
                           </span>
-                          <button
-                            type="button"
-                            aria-label="One more"
-                            onClick={() =>
-                              setQuantity(l.itemId, l.quantity + 1)
-                            }
-                            disabled={l.quantity >= l.maxQuantity}
-                            className="grid h-8 w-8 place-items-center rounded-full text-ink hover:bg-surface-sunk disabled:opacity-40"
-                          >
-                            <Plus className="h-3.5 w-3.5" aria-hidden />
-                          </button>
-                        </div>
+                        ) : (
+                          <div className="inline-flex items-center rounded-full border border-line-strong bg-canvas">
+                            <button
+                              type="button"
+                              aria-label="One fewer"
+                              onClick={() =>
+                                setQuantity(l.itemId, l.quantity - 1)
+                              }
+                              className="grid h-8 w-8 place-items-center rounded-full text-ink hover:bg-surface-sunk"
+                            >
+                              <Minus className="h-3.5 w-3.5" aria-hidden />
+                            </button>
+                            <span className="w-7 text-center text-sm font-bold tabular-nums">
+                              {l.quantity}
+                            </span>
+                            <button
+                              type="button"
+                              aria-label="One more"
+                              onClick={() =>
+                                setQuantity(l.itemId, l.quantity + 1)
+                              }
+                              disabled={l.quantity >= l.maxQuantity}
+                              className="grid h-8 w-8 place-items-center rounded-full text-ink hover:bg-surface-sunk disabled:opacity-40"
+                            >
+                              <Plus className="h-3.5 w-3.5" aria-hidden />
+                            </button>
+                          </div>
+                        )}
                         <span className="text-sm font-semibold text-ink tabular-nums">
-                          {moneyExact(l.unitCost * l.quantity)}
+                          {moneyExact(
+                            l.amount != null ? l.amount : l.unitCost * l.quantity,
+                          )}
                         </span>
                       </div>
                     </li>

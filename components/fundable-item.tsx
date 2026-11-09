@@ -9,6 +9,12 @@ import { moneyExact, money } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { ItemWithFunding } from "@/lib/types";
 import { useCart } from "@/components/cart/cart-context";
+import {
+  PARTIAL_FUNDING_READY,
+  MIN_CONTRIBUTION,
+  itemTotalCost,
+  itemRemainingCost,
+} from "@/lib/funding";
 
 /**
  * Who's looking, and whether they may fund:
@@ -33,27 +39,61 @@ export function FundableItem({
   closed?: boolean;
 }) {
   const { addLine, open } = useCart();
-  const remaining = Math.max(0, item.quantity_needed - item.quantity_funded);
-  const fullyFunded = remaining === 0;
-  const [qty, setQty] = useState(remaining > 0 ? 1 : 0);
-
   const unit = item.product?.unit_price ?? item.cost;
+
+  // ---- Whole-unit funding (current model) ----
+  const remaining = Math.max(0, item.quantity_needed - item.quantity_funded);
+  const [qty, setQty] = useState(remaining > 0 ? 1 : 0);
   const lineTotal = unit * qty;
-  const fundedPct = Math.round(
-    (item.quantity_funded / item.quantity_needed) * 100,
+
+  // ---- Per-dollar funding (PARTIAL_FUNDING_READY) ----
+  const totalCost = itemTotalCost(item);
+  const raised = Number(item.amount_raised ?? 0);
+  const remainingCost = itemRemainingCost(item);
+  const [amount, setAmount] = useState(() =>
+    Math.max(MIN_CONTRIBUTION, Math.round(remainingCost * 100) / 100),
   );
 
+  const fullyFunded = PARTIAL_FUNDING_READY
+    ? remainingCost <= 0
+    : remaining === 0;
+  const fundedPct = PARTIAL_FUNDING_READY
+    ? totalCost > 0
+      ? Math.min(100, Math.round((raised / totalCost) * 100))
+      : 0
+    : Math.round((item.quantity_funded / item.quantity_needed) * 100);
+
   function addToCart() {
-    addLine({
-      itemId: item.id,
-      campaignId: item.campaign_id,
-      campaignTitle,
-      schoolName,
-      title: item.title,
-      unitCost: unit,
-      quantity: qty,
-      maxQuantity: remaining,
-    });
+    if (PARTIAL_FUNDING_READY) {
+      const amt = Math.min(
+        Math.max(MIN_CONTRIBUTION, amount || 0),
+        remainingCost,
+      );
+      if (amt < MIN_CONTRIBUTION) return;
+      addLine({
+        itemId: item.id,
+        campaignId: item.campaign_id,
+        campaignTitle,
+        schoolName,
+        title: item.title,
+        unitCost: unit,
+        quantity: 1,
+        maxQuantity: 0,
+        amount: Math.round(amt * 100) / 100,
+        maxAmount: remainingCost,
+      });
+    } else {
+      addLine({
+        itemId: item.id,
+        campaignId: item.campaign_id,
+        campaignTitle,
+        schoolName,
+        title: item.title,
+        unitCost: unit,
+        quantity: qty,
+        maxQuantity: remaining,
+      });
+    }
     open();
   }
 
@@ -112,13 +152,15 @@ export function FundableItem({
         </div>
       </div>
 
-      {/* funded-of-needed line */}
+      {/* funded progress line */}
       <div className="mt-4 flex items-center gap-3">
         <div className="lane h-1.5 flex-1">
           <div className="lane-fill" style={{ width: `${fundedPct}%` }} />
         </div>
         <span className="shrink-0 text-xs font-medium text-ink-soft tabular-nums">
-          {item.quantity_funded}/{item.quantity_needed} funded
+          {PARTIAL_FUNDING_READY
+            ? `${moneyExact(raised)} of ${moneyExact(totalCost)}`
+            : `${item.quantity_funded}/${item.quantity_needed} funded`}
         </span>
       </div>
 
@@ -137,6 +179,36 @@ export function FundableItem({
             Schools can&apos;t fund items — sign in with a donor account to chip
             in.
           </p>
+        ) : PARTIAL_FUNDING_READY ? (
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <label className="inline-flex items-center gap-2 text-sm text-ink-soft">
+              <span>Contribute</span>
+              <span className="inline-flex items-center rounded-full border border-line-strong bg-surface px-3 py-1.5">
+                <span className="text-ink-faint">$</span>
+                <input
+                  type="number"
+                  min={MIN_CONTRIBUTION}
+                  max={remainingCost}
+                  step="1"
+                  value={amount}
+                  onChange={(e) =>
+                    setAmount(Math.max(0, Number(e.target.value) || 0))
+                  }
+                  className="w-20 bg-transparent text-right text-sm font-bold tabular-nums text-ink focus:outline-none"
+                  aria-label={`Contribution to ${item.title}`}
+                />
+              </span>
+            </label>
+
+            <Button
+              onClick={addToCart}
+              size="sm"
+              disabled={amount < MIN_CONTRIBUTION || amount > remainingCost}
+            >
+              <ShoppingCart className="h-4 w-4" aria-hidden />
+              Add · {money(Math.min(Math.max(amount, 0), remainingCost))}
+            </Button>
+          </div>
         ) : (
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="inline-flex items-center rounded-full border border-line-strong bg-surface">
