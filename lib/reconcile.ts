@@ -7,6 +7,7 @@ import {
 } from "@/lib/notify";
 import { acaraMatchForSchool, DEMOGRAPHICS_READY } from "@/lib/geocode";
 import { CAMPAIGN_IMPACT_READY } from "@/lib/campaign-fields";
+import { PARTIAL_FUNDING_READY } from "@/lib/funding";
 
 /**
  * Campaign reconciliation (migration 0028). Gated OFF until the migration is
@@ -164,27 +165,80 @@ export async function reconcileCampaign(
   const total = lines.reduce((s, l) => s + l.amount, 0);
   const donationCount = new Set(lines.map((l) => l.invoiceRef)).size;
 
-  // Item coverage.
-  const { data: items } = await admin
+  // Item coverage + (per-dollar) fulfilment split.
+  const { data: itemsRaw } = await admin
     .from("items")
-    .select("id, quantity_needed")
+    .select(
+      "id, title, cost, quantity_needed, product:hart_sport_products(hart_sku)",
+    )
     .eq("campaign_id", campaignId);
-  const { data: funding } = items?.length
+  const items = (itemsRaw ?? []) as unknown as {
+    id: string;
+    title: string;
+    cost: number;
+    quantity_needed: number;
+    product?: { hart_sku?: string } | { hart_sku?: string }[] | null;
+  }[];
+  const { data: funding } = items.length
     ? await admin
         .from("item_funding")
-        .select("item_id, quantity_funded")
+        .select("item_id, quantity_funded, amount_raised")
         .in(
           "item_id",
           items.map((i) => i.id),
         )
     : { data: [] };
-  const fundedById = new Map(
-    (funding ?? []).map((f) => [f.item_id, Number(f.quantity_funded)]),
+  const fundById = new Map(
+    (funding ?? []).map((f) => [
+      f.item_id,
+      { qty: Number(f.quantity_funded), amount: Number(f.amount_raised) },
+    ]),
   );
-  const itemsTotal = items?.length ?? 0;
-  const itemsFunded = (items ?? []).filter(
-    (i) => (fundedById.get(i.id) ?? 0) >= i.quantity_needed,
-  ).length;
+  const itemsTotal = items.length;
+
+  // Per-dollar: split items into fully funded (buy & ship) vs partially funded
+  // (their contributions become one Hart Sport gift card). Whole-unit: count
+  // items whose full quantity is funded.
+  let itemsFunded: number;
+  let fulfilment:
+    | {
+        items: {
+          title: string;
+          sku: string | null;
+          totalCost: number;
+          raised: number;
+          funded: boolean;
+        }[];
+        giftCardTotal: number;
+      }
+    | null = null;
+
+  if (PARTIAL_FUNDING_READY) {
+    const fitems = items
+      .map((i) => {
+        const prod = Array.isArray(i.product) ? i.product[0] : i.product;
+        const totalCost = Math.round(Number(i.cost) * i.quantity_needed * 100) / 100;
+        const raised = fundById.get(i.id)?.amount ?? 0;
+        return {
+          title: i.title,
+          sku: prod?.hart_sku ?? null,
+          totalCost,
+          raised: Math.round(raised * 100) / 100,
+          funded: totalCost > 0 && raised >= totalCost,
+        };
+      })
+      .filter((x) => x.raised > 0 || x.funded);
+    itemsFunded = fitems.filter((x) => x.funded).length;
+    const giftCardTotal =
+      Math.round(
+        fitems.filter((x) => !x.funded).reduce((s, x) => s + x.raised, 0) * 100,
+      ) / 100;
+    fulfilment = { items: fitems, giftCardTotal };
+  } else {
+    itemsFunded = items.filter(
+      (i) => (fundById.get(i.id)?.qty ?? 0) >= i.quantity_needed,
+    ).length;
+  }
 
   return notifyAdminReconciliation({
     campaignTitle: camp.title ?? "a campaign",
@@ -203,5 +257,6 @@ export async function reconcileCampaign(
     donationCount,
     demographics,
     impact,
+    fulfilment,
   });
 }

@@ -14,6 +14,7 @@ import { lookupAbn } from "@/lib/abr";
 import { DELIVERY_CONFIRM_READY } from "@/lib/profile";
 import { reconcileCampaign, RECONCILE_READY } from "@/lib/reconcile";
 import { acaraMatchForSchool, DEMOGRAPHICS_READY } from "@/lib/geocode";
+import { PARTIAL_FUNDING_READY } from "@/lib/funding";
 
 /**
  * Optional donor business + postcode on purchases (migration 0034). Gated OFF
@@ -334,7 +335,13 @@ async function notifyAdmin(
       });
     }
 
-    for (const [sid, sLines] of linesBySchool) {
+    // Per-donation order invoice to the supplier — only in whole-unit mode. With
+    // per-dollar funding, a contribution isn't a shippable unit, so fulfilment
+    // (items to buy + the gift card) is instructed once at campaign close
+    // (reconcileCampaign), not per donation.
+    for (const [sid, sLines] of PARTIAL_FUNDING_READY
+      ? new Map<string, CartMapLine[]>()
+      : linesBySchool) {
       const school = schoolById.get(sid);
       const info = schoolInfo.get(sid) ?? {
         acaraAddress: null,

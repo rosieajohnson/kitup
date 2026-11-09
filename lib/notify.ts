@@ -584,6 +584,21 @@ export interface ReconcileReport {
   demographics: SchoolDemographics | null;
   /** School-provided need/impact answers (null if none captured). */
   impact: CampaignImpact | null;
+  /**
+   * Per-dollar mode only: the fulfilment split — items fully funded (buy & ship)
+   * vs partially funded (their contributions become one Hart Sport gift card).
+   * Null in whole-unit mode (the purchase ledger above is used instead).
+   */
+  fulfilment?: {
+    items: {
+      title: string;
+      sku: string | null;
+      totalCost: number;
+      raised: number;
+      funded: boolean;
+    }[];
+    giftCardTotal: number;
+  } | null;
 }
 
 /**
@@ -626,6 +641,44 @@ export async function notifyAdminReconciliation(
         "[ ]",
     )
     .join("\n");
+  // Body = per-dollar fulfilment split, or the whole-unit purchase ledger.
+  const f = r.fulfilment;
+  const fulfilmentText = f
+    ? `Funds raised: ${money(r.total)}   Items fully funded: ${r.itemsFunded}/${r.itemsTotal}   Donations: ${r.donationCount}
+
+PURCHASE & SHIP (fully funded — buy from catalogue & deliver):
+${
+  f.items.filter((x) => x.funded).length
+    ? f.items
+        .filter((x) => x.funded)
+        .map((x) => `  ${pad(x.sku ?? "—", 10)}${clip(x.title, 40)} — ${money(x.totalCost)}`)
+        .join("\n")
+    : "  (none)"
+}
+
+PARTIALLY FUNDED (not shipped — contributions go to the gift card):
+${
+  f.items.filter((x) => !x.funded).length
+    ? f.items
+        .filter((x) => !x.funded)
+        .map((x) => `  ${pad(x.sku ?? "—", 10)}${clip(x.title, 30)} ${money(x.raised)} of ${money(x.totalCost)}`)
+        .join("\n")
+    : "  (none)"
+}
+
+HART SPORT GIFT CARD for the school: ${money(f.giftCardTotal)}
+  (= the total contributed to the partially-funded items above)`
+    : `Items funded: ${r.itemsFunded}/${r.itemsTotal}   Donations: ${r.donationCount}   Total: ${money(r.total)}
+
+  ${pad("FUNDED", 8)}${pad("INVOICE", 14)}${pad("SKU", 10)}${pad("ITEM", 28)}${pad("QTY", 4)}${pad("AMOUNT", 10)}SENT
+  ${"-".repeat(77)}
+${rows}
+  ${"-".repeat(77)}
+  ${pad("", 60)}TOTAL: ${money(r.total)}`;
+  const closingNote = f
+    ? "Buy & ship the fully-funded items, and issue the school a Hart Sport gift card for the amount shown. ASF issues the donor receipts and transfers funds."
+    : "Tick each line as it's dispatched. Each row references the donor invoice it was funded under, for reconciliation against payments received.";
+
   const text = `KIT UP — CAMPAIGN RECONCILIATION
 Report ${r.reportRef} · ${dfull} · closed: ${r.reason}
 
@@ -643,16 +696,9 @@ ${demoRows.length ? txtRows(demoRows) : "  (not available)"}
 THE NEED & IMPACT (school-provided):
 ${hasImpact ? txtRows(impactRows) : "  (no impact details provided)"}
 
-Items funded: ${r.itemsFunded}/${r.itemsTotal}   Donations: ${r.donationCount}   Total: ${money(r.total)}
+${fulfilmentText}
 
-  ${pad("FUNDED", 8)}${pad("INVOICE", 14)}${pad("SKU", 10)}${pad("ITEM", 28)}${pad("QTY", 4)}${pad("AMOUNT", 10)}SENT
-  ${"-".repeat(77)}
-${rows}
-  ${"-".repeat(77)}
-  ${pad("", 60)}TOTAL: ${money(r.total)}
-
-Tick each line as it's dispatched. Each row references the donor invoice it was
-funded under, for reconciliation against payments received.
+${closingNote}
 
 — Kit Up / ASF admin`;
 
@@ -669,6 +715,51 @@ funded under, for reconciliation against payments received.
     </tr>`,
     )
     .join("");
+  const cellTd = 'style="padding:7px 8px;border-bottom:1px solid #eee"';
+  const fulfilmentHtml = f
+    ? `<p style="font-size:14px;color:#555;margin:14px 0 8px">Funds raised ${money(r.total)} · ${r.itemsFunded}/${r.itemsTotal} items fully funded · ${r.donationCount} donations</p>
+    <h3 style="font-size:15px;margin:16px 0 4px">Purchase &amp; ship <span style="font-weight:400;color:#888;font-size:13px">(fully funded)</span></h3>
+    ${
+      f.items.filter((x) => x.funded).length
+        ? `<table style="border-collapse:collapse;width:100%;font-size:14px"><tbody>${f.items
+            .filter((x) => x.funded)
+            .map(
+              (x) => `<tr><td ${cellTd};font-family:monospace;font-size:12px>${esc(x.sku ?? "—")}</td><td ${cellTd}>${esc(x.title)}</td><td ${cellTd};text-align:right>${money(x.totalCost)}</td></tr>`,
+            )
+            .join("")}</tbody></table>`
+        : '<p style="font-size:13px;color:#888">None fully funded.</p>'
+    }
+    <h3 style="font-size:15px;margin:16px 0 4px">Partially funded <span style="font-weight:400;color:#888;font-size:13px">(not shipped — value goes to the gift card)</span></h3>
+    ${
+      f.items.filter((x) => !x.funded).length
+        ? `<table style="border-collapse:collapse;width:100%;font-size:14px"><tbody>${f.items
+            .filter((x) => !x.funded)
+            .map(
+              (x) => `<tr><td ${cellTd};font-family:monospace;font-size:12px>${esc(x.sku ?? "—")}</td><td ${cellTd}>${esc(x.title)}</td><td ${cellTd};text-align:right>${money(x.raised)} <span style="color:#888">of ${money(x.totalCost)}</span></td></tr>`,
+            )
+            .join("")}</tbody></table>`
+        : '<p style="font-size:13px;color:#888">None.</p>'
+    }
+    <div style="margin:16px 0;padding:12px 14px;background:#fff6ed;border:1px solid #f1c7a8;border-radius:8px">
+      <strong style="font-size:15px">Hart Sport gift card for ${esc(r.schoolName ?? "the school")}: ${money(f.giftCardTotal)}</strong>
+      <div style="font-size:13px;color:#555;margin-top:2px">= the total contributed to the partially-funded items above.</div>
+    </div>`
+    : `<p style="font-size:14px;color:#555;margin:14px 0 8px">Items funded ${r.itemsFunded}/${r.itemsTotal} · ${r.donationCount} donations · total ${money(r.total)}</p>
+    <table style="border-collapse:collapse;width:100%;font-size:14px">
+      <thead><tr style="text-align:left;color:#555;font-size:12px;text-transform:uppercase">
+        <th style="padding:7px 8px">Funded</th><th style="padding:7px 8px">Invoice</th>
+        <th style="padding:7px 8px">SKU</th><th style="padding:7px 8px">Item</th>
+        <th style="padding:7px 8px;text-align:center">Qty</th>
+        <th style="padding:7px 8px;text-align:right">Amount</th>
+        <th style="padding:7px 8px;text-align:center">Dispatched</th>
+      </tr></thead>
+      <tbody>${htmlRows}</tbody>
+      <tfoot><tr>
+        <td colspan="5" style="padding:10px 8px;text-align:right;font-weight:bold">Total funded</td>
+        <td style="padding:10px 8px;text-align:right;font-weight:bold">${money(r.total)}</td><td></td>
+      </tr></tfoot>
+    </table>`;
+
   const html = `<div style="font-family:Arial,Helvetica,sans-serif;max-width:680px;color:#1a1a1a">
     <div style="display:flex;justify-content:space-between;align-items:baseline">
       <h2 style="margin:0;color:#e5533c">Kit Up — Campaign reconciliation</h2>
@@ -686,22 +777,8 @@ funded under, for reconciliation against payments received.
     ${demoRows.length ? htmlTable(demoRows) : '<p style="font-size:13px;color:#888">Not available.</p>'}
     <h3 style="font-size:15px;margin:16px 0 2px">The need &amp; impact <span style="font-weight:400;color:#888;font-size:13px">(school-provided)</span></h3>
     ${hasImpact ? htmlTable(impactRows) : '<p style="font-size:13px;color:#888">No impact details provided.</p>'}
-    <p style="font-size:14px;color:#555;margin:14px 0 8px">Items funded ${r.itemsFunded}/${r.itemsTotal} · ${r.donationCount} donations · total ${money(r.total)}</p>
-    <table style="border-collapse:collapse;width:100%;font-size:14px">
-      <thead><tr style="text-align:left;color:#555;font-size:12px;text-transform:uppercase">
-        <th style="padding:7px 8px">Funded</th><th style="padding:7px 8px">Invoice</th>
-        <th style="padding:7px 8px">SKU</th><th style="padding:7px 8px">Item</th>
-        <th style="padding:7px 8px;text-align:center">Qty</th>
-        <th style="padding:7px 8px;text-align:right">Amount</th>
-        <th style="padding:7px 8px;text-align:center">Dispatched</th>
-      </tr></thead>
-      <tbody>${htmlRows}</tbody>
-      <tfoot><tr>
-        <td colspan="5" style="padding:10px 8px;text-align:right;font-weight:bold">Total funded</td>
-        <td style="padding:10px 8px;text-align:right;font-weight:bold">${money(r.total)}</td><td></td>
-      </tr></tfoot>
-    </table>
-    <p style="font-size:13px;color:#555">Tick each line as it's dispatched. Each row references the donor invoice it was funded under, for reconciliation against payments received.</p>
+    ${fulfilmentHtml}
+    <p style="font-size:13px;color:#555;margin-top:12px">${esc(closingNote)}</p>
     <p style="font-size:12px;color:#999">— Kit Up / ASF admin</p>
   </div>`;
 
