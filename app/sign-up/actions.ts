@@ -142,9 +142,11 @@ export async function precheckSchool(input: {
     ).slice(0, 6);
 
     const msg =
-      status === "mismatch"
-        ? `"${school}" doesn't match a school at postcode ${postcode} in the ACARA registry.`
-        : `No school found at postcode ${postcode} in the ACARA registry — check the school name and postcode.`;
+      status === "closed"
+        ? `"${school}" appears to have closed in the ACARA register. If it's still operating, contact us — otherwise check the name and postcode.`
+        : status === "mismatch"
+          ? `"${school}" doesn't match a school at postcode ${postcode} in the ACARA registry.`
+          : `No school found at postcode ${postcode} in the ACARA registry — check the school name and postcode.`;
     return {
       error:
         suggestions.length > 0

@@ -9,7 +9,7 @@
  */
 import * as XLSX from "xlsx";
 import { createClient } from "@supabase/supabase-js";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 
 // --- env from ../.env.local ---
 const envText = readFileSync(new URL("../.env.local", import.meta.url), "utf8");
@@ -31,11 +31,31 @@ const supabase = createClient(
 const DIR = "C:/Users/rosie.johnson/Desktop/Personal/EasyRaise2";
 const STATES = ["ACT", "NSW", "NT", "QLD", "SA", "TAS", "VIC", "WA"];
 
+// Pick the newest ACARA_<ST>_<year>.xlsx per state, so each quarterly refresh
+// is picked up without editing this script.
+const allFiles = readdirSync(DIR);
+function resolveFile(st) {
+  const re = new RegExp(`^ACARA_${st}_(\\d{4})\\.xlsx$`, "i");
+  let best = null;
+  let bestYear = -1;
+  for (const f of allFiles) {
+    const m = f.match(re);
+    if (m && Number(m[1]) > bestYear) {
+      bestYear = Number(m[1]);
+      best = f;
+    }
+  }
+  return best ? { path: `${DIR}/${best}`, year: bestYear } : null;
+}
+
 const rows = [];
 for (const st of STATES) {
-  const wb = XLSX.read(readFileSync(`${DIR}/ACARA_${st}_2026.xlsx`), {
-    type: "buffer",
-  });
+  const file = resolveFile(st);
+  if (!file) {
+    console.error(`! no ACARA_${st}_*.xlsx in ${DIR}`);
+    continue;
+  }
+  const wb = XLSX.read(readFileSync(file.path), { type: "buffer" });
   const ws = wb.Sheets[wb.SheetNames[0]];
   const data = XLSX.utils.sheet_to_json(ws, {
     header: 1,
@@ -48,13 +68,16 @@ for (const st of STATES) {
     continue;
   }
   let kept = 0;
+  let nonOpen = 0;
   for (let i = hi + 1; i < data.length; i++) {
     const r = data[i];
     const acara = String(r[0] ?? "").trim();
     const name = String(r[1] ?? "").trim();
     const status = String(r[7] ?? "").trim();
     if (!acara || !name) continue;
-    if (status && status.toLowerCase() !== "open") continue; // current schools only
+    // Store ALL schools with their status (don't drop closed ones) — verification
+    // matches open schools only, but keeping closed ones lets us tell a user a
+    // school has closed, and denotes status in the registry.
     const pc = String(r[4] ?? "").trim();
     rows.push({
       acara_id: acara,
@@ -64,11 +87,13 @@ for (const st of STATES) {
       postcode: pc ? pc.padStart(4, "0") : null,
       latitude: r[11] !== "" && r[11] != null ? Number(r[11]) : null,
       longitude: r[12] !== "" && r[12] != null ? Number(r[12]) : null,
-      source: "ACARA ASL 2026",
+      status: status || null,
+      source: `ACARA ASL ${file.year}`,
     });
     kept++;
+    if (status && status.toLowerCase() !== "open") nonOpen++;
   }
-  console.log(`${st}: ${kept} open schools`);
+  console.log(`${st}: ${kept} schools (${nonOpen} non-open)`);
 }
 
 // de-dupe by acara_id (defensive)
