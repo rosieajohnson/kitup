@@ -10,7 +10,7 @@ import type { ItemWithFunding } from "@/lib/types";
  * Gated OFF until the whole flow is ready (funding UI + close/gift-card
  * reconciliation + policy wording). While off, funding stays whole-unit.
  */
-export const PARTIAL_FUNDING_READY = false;
+export const PARTIAL_FUNDING_READY = true;
 
 /** Minimum contribution (AUD) — tax-deductibility floor. */
 export const MIN_CONTRIBUTION = 2;
