@@ -31,31 +31,48 @@ const supabase = createClient(
 const DIR = "C:/Users/rosie.johnson/Desktop/Personal/EasyRaise2";
 const STATES = ["ACT", "NSW", "NT", "QLD", "SA", "TAS", "VIC", "WA"];
 
-// Pick the newest ACARA_<ST>_<year>.xlsx per state, so each quarterly refresh
-// is picked up without editing this script.
-const allFiles = readdirSync(DIR);
-function resolveFile(st) {
-  const re = new RegExp(`^ACARA_${st}_(\\d{4})\\.xlsx$`, "i");
-  let best = null;
-  let bestYear = -1;
-  for (const f of allFiles) {
-    const m = f.match(re);
-    if (m && Number(m[1]) > bestYear) {
-      bestYear = Number(m[1]);
-      best = f;
+// Two input modes:
+//  - pass a single combined ASL export as an argument (ACARA "Search Results"
+//    xlsx = all states/sectors in one sheet), e.g.
+//      node kitup/scripts/import_school_registry.mjs "C:/path/SearchResults.xlsx"
+//  - or drop the 8 per-state ACARA_<ST>_<year>.xlsx files in DIR (newest picked).
+function yearFrom(path) {
+  const m = path.match(/(20\d{2})/);
+  return m ? m[1] : String(new Date().getFullYear());
+}
+
+const tasks = [];
+const ARG = process.argv[2];
+if (ARG) {
+  tasks.push({ label: "ASL (combined)", path: ARG, year: yearFrom(ARG) });
+} else {
+  const allFiles = readdirSync(DIR);
+  for (const st of STATES) {
+    let best = null;
+    let bestYear = -1;
+    const re = new RegExp(`^ACARA_${st}_(\\d{4})\\.xlsx$`, "i");
+    for (const f of allFiles) {
+      const m = f.match(re);
+      if (m && Number(m[1]) > bestYear) {
+        bestYear = Number(m[1]);
+        best = f;
+      }
     }
+    if (!best) {
+      console.error(`! no ACARA_${st}_*.xlsx in ${DIR}`);
+      continue;
+    }
+    tasks.push({ label: st, path: `${DIR}/${best}`, year: String(bestYear) });
   }
-  return best ? { path: `${DIR}/${best}`, year: bestYear } : null;
+}
+if (tasks.length === 0) {
+  console.error("No input files found. Pass a combined ASL xlsx path, or place ACARA_<ST>_<year>.xlsx files in the folder.");
+  process.exit(1);
 }
 
 const rows = [];
-for (const st of STATES) {
-  const file = resolveFile(st);
-  if (!file) {
-    console.error(`! no ACARA_${st}_*.xlsx in ${DIR}`);
-    continue;
-  }
-  const wb = XLSX.read(readFileSync(file.path), { type: "buffer" });
+for (const task of tasks) {
+  const wb = XLSX.read(readFileSync(task.path), { type: "buffer" });
   const ws = wb.Sheets[wb.SheetNames[0]];
   const data = XLSX.utils.sheet_to_json(ws, {
     header: 1,
@@ -64,7 +81,7 @@ for (const st of STATES) {
   });
   const hi = data.findIndex((r) => String(r[0]).trim() === "ACARA ID");
   if (hi < 0) {
-    console.error(`! no header row in ${st}`);
+    console.error(`! no header row in ${task.label}`);
     continue;
   }
   let kept = 0;
@@ -88,12 +105,12 @@ for (const st of STATES) {
       latitude: r[11] !== "" && r[11] != null ? Number(r[11]) : null,
       longitude: r[12] !== "" && r[12] != null ? Number(r[12]) : null,
       status: status || null,
-      source: `ACARA ASL ${file.year}`,
+      source: `ACARA ASL ${task.year}`,
     });
     kept++;
     if (status && status.toLowerCase() !== "open") nonOpen++;
   }
-  console.log(`${st}: ${kept} schools (${nonOpen} non-open)`);
+  console.log(`${task.label}: ${kept} schools (${nonOpen} non-open)`);
 }
 
 // de-dupe by acara_id (defensive)
