@@ -16,6 +16,7 @@ import { money, moneyExact } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useCart } from "@/components/cart/cart-context";
 import { computeFees, feeCopy, feePct } from "@/lib/fees";
+import { PARTIAL_FUNDING_READY } from "@/lib/funding";
 import {
   createCheckoutSession,
   lookupDonorEmail,
@@ -464,6 +465,15 @@ export function CartDrawer() {
                 Through our partnership with the Australian Sports Foundation,
                 any donation of $2 or more is tax deductible.
               </p>
+              {PARTIAL_FUNDING_READY && (
+                <p className="mb-2">
+                  You can contribute any amount toward an item. If an item
+                  isn&apos;t fully funded by the campaign&apos;s end, your
+                  contribution still goes to the school as a{" "}
+                  <strong>Hart Sport gift card</strong> (via the ASF) — it is
+                  never refunded.
+                </p>
+              )}
               <label className="flex items-start gap-2">
                 <input
                   type="checkbox"
