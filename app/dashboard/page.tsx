@@ -6,7 +6,8 @@ import { SchoolCampaignList } from "@/components/school-campaign-list";
 import { getCampaignsBySchool } from "@/lib/data";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
-import { resolveActiveSchool } from "@/lib/team";
+import { resolveActiveSchool, TEAM_ACCESS_READY } from "@/lib/team";
+import { Users } from "lucide-react";
 
 export const metadata = { title: "School dashboard" };
 
@@ -14,6 +15,7 @@ export default async function DashboardPage() {
   // Mock/dev path (no Supabase): pin to one demo school so the UI runs.
   let schoolId = "s_brunswick";
   let schoolName = "Brunswick East Primary School";
+  let isOwner = false;
 
   // Live path: require a signed-in school account.
   if (isSupabaseConfigured()) {
@@ -36,6 +38,7 @@ export default async function DashboardPage() {
 
     schoolId = active.schoolId;
     schoolName = school.school;
+    isOwner = active.role === "owner";
   }
 
   const campaigns = await getCampaignsBySchool(schoolId);
@@ -49,11 +52,20 @@ export default async function DashboardPage() {
             {schoolName}
           </h1>
         </div>
-        <Link href="/dashboard/campaigns/new">
-          <Button>
-            <Plus className="h-4 w-4" aria-hidden /> New campaign
-          </Button>
-        </Link>
+        <div className="flex items-center gap-2">
+          {TEAM_ACCESS_READY && isOwner && (
+            <Link href="/dashboard/team">
+              <Button variant="outline">
+                <Users className="h-4 w-4" aria-hidden /> Team
+              </Button>
+            </Link>
+          )}
+          <Link href="/dashboard/campaigns/new">
+            <Button>
+              <Plus className="h-4 w-4" aria-hidden /> New campaign
+            </Button>
+          </Link>
+        </div>
       </div>
 
       <div className="mt-10">
