@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft, Calendar, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, Calendar, CheckCircle2, MapPin, AlertTriangle } from "lucide-react";
 import { getCampaign } from "@/lib/data";
 import { getViewer } from "@/lib/auth";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
+import { createClient } from "@/lib/supabase/server";
+import { DELIVERY_CONFIRM_READY } from "@/lib/profile";
 import { money, moneyExact, shortDate, deadlineLabel } from "@/lib/format";
 import { PublishButton } from "@/components/publish-button";
 
@@ -26,6 +28,23 @@ export default async function ReviewCampaignPage({ params }: Params) {
 
   // Already public — nothing to confirm.
   if (campaign.status === "live") redirect(`/campaigns/${id}`);
+
+  // Delivery address must be confirmed before going live.
+  const supabase = await createClient();
+  const { data: school } = await supabase
+    .from("schools")
+    .select("address, suburb, postcode, delivery_confirmed")
+    .eq("id", viewer.schoolId)
+    .single();
+  const addressParts = [school?.address, school?.suburb, school?.postcode]
+    .filter((p) => p && String(p).trim())
+    .join(", ");
+  const addressConfirmed =
+    !DELIVERY_CONFIRM_READY ||
+    Boolean(school?.delivery_confirmed && school?.address?.trim());
+  const blockedReason = addressConfirmed
+    ? undefined
+    : "Confirm your delivery address before going live.";
 
   return (
     <div className="container-page py-10 sm:py-14">
@@ -97,13 +116,47 @@ export default async function ReviewCampaignPage({ params }: Params) {
           </div>
         </section>
 
+        {/* Delivery address */}
+        <section className="rounded-xl border border-line bg-surface p-6 shadow-card">
+          <h2 className="font-display text-lg font-bold text-ink">
+            Delivery address
+          </h2>
+          <p className="mt-1 inline-flex items-start gap-1.5 text-sm text-ink-soft">
+            <MapPin className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+            {addressParts || (
+              <span className="italic text-ink-faint">No address on file.</span>
+            )}
+          </p>
+          {addressConfirmed ? (
+            <p className="mt-3 inline-flex items-center gap-2 text-sm font-medium text-turf-dark">
+              <CheckCircle2 className="h-4 w-4" aria-hidden />
+              Confirmed — ready to ship gear here.
+            </p>
+          ) : (
+            <div className="mt-3 rounded-lg border border-coral/30 bg-coral/5 p-4">
+              <p className="inline-flex items-start gap-2 text-sm font-medium text-coral-dark">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+                Your delivery address isn&apos;t confirmed yet. Campaigns can&apos;t
+                go live until it is — so funded gear always has a verified place
+                to ship to.
+              </p>
+              <Link
+                href="/dashboard/profile"
+                className="mt-3 inline-block text-sm font-semibold text-coral hover:text-coral-dark"
+              >
+                Confirm your delivery address →
+              </Link>
+            </div>
+          )}
+        </section>
+
         {/* Confirm + publish */}
         <section className="rounded-xl border border-line bg-surface p-6 shadow-card">
           <p className="mb-4 inline-flex items-center gap-2 text-sm font-medium text-ink-soft">
             <CheckCircle2 className="h-4 w-4 text-turf-dark" aria-hidden />
             This campaign is a draft — only you can see it right now.
           </p>
-          <PublishButton campaignId={campaign.id} />
+          <PublishButton campaignId={campaign.id} blockedReason={blockedReason} />
           <p className="mt-4 text-sm text-ink-soft">
             Need to change something?{" "}
             <Link

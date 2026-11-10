@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { resolveActiveSchool, canPublish } from "@/lib/team";
 import { notifyAdminCampaignLive } from "@/lib/notify";
+import { DELIVERY_CONFIRM_READY } from "@/lib/profile";
 
 /**
  * Publish a draft campaign ("go live"). Only owners and editors may do this
@@ -31,6 +32,23 @@ export async function publishCampaign(
     return {
       error:
         "Contributors can create and edit campaigns but can't publish them — ask an editor or owner to post it.",
+    };
+  }
+
+  // Delivery address must be confirmed before a campaign can go live, so gear
+  // always has a verified place to ship to.
+  const { data: school } = await supabase
+    .from("schools")
+    .select("school, address, delivery_confirmed")
+    .eq("id", active.schoolId)
+    .single();
+  if (
+    DELIVERY_CONFIRM_READY &&
+    (!school?.delivery_confirmed || !school.address?.trim())
+  ) {
+    return {
+      error:
+        "Confirm your school's delivery address before going live. Open your profile, check the delivery address (add a street number if it's missing) and save — that confirms it.",
     };
   }
 
@@ -61,13 +79,10 @@ export async function publishCampaign(
   // Never let a notification failure block publishing.
   if (!wasLive) {
     try {
-      const [{ data: items }, { data: school }] = await Promise.all([
-        supabase
-          .from("items")
-          .select("title, quantity_needed, cost, product:hart_sport_products ( hart_sku )")
-          .eq("campaign_id", campaignId),
-        supabase.from("schools").select("school").eq("id", active.schoolId).single(),
-      ]);
+      const { data: items } = await supabase
+        .from("items")
+        .select("title, quantity_needed, cost, product:hart_sport_products ( hart_sku )")
+        .eq("campaign_id", campaignId);
       if (items?.length) {
         const lines = items.map((it) => {
           const p = Array.isArray(it.product) ? it.product[0] : it.product;

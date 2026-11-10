@@ -173,8 +173,10 @@ export async function updateProfile(
       abn,
       address: address || null,
     };
-    // Saving the profile counts as the school confirming its delivery address.
-    if (DELIVERY_CONFIRM_READY) update.delivery_confirmed = true;
+    // Saving the profile confirms the delivery address — but only when one is
+    // actually entered (an empty address can't count as confirmed, since a
+    // confirmed address is required before a campaign can go live).
+    if (DELIVERY_CONFIRM_READY) update.delivery_confirmed = Boolean(address);
     if (abnOrNameChanged) {
       update.abn_verified = true;
       update.abn_entity_name = abnEntity;

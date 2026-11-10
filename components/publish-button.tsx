@@ -5,7 +5,13 @@ import { Loader2, Rocket } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { publishCampaign } from "@/app/dashboard/campaigns/[id]/review/actions";
 
-export function PublishButton({ campaignId }: { campaignId: string }) {
+export function PublishButton({
+  campaignId,
+  blockedReason,
+}: {
+  campaignId: string;
+  blockedReason?: string;
+}) {
   const [confirmed, setConfirmed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -36,7 +42,7 @@ export function PublishButton({ campaignId }: { campaignId: string }) {
         <Button
           size="lg"
           onClick={goLive}
-          disabled={!confirmed || pending}
+          disabled={!confirmed || pending || Boolean(blockedReason)}
         >
           {pending ? (
             <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
@@ -46,6 +52,12 @@ export function PublishButton({ campaignId }: { campaignId: string }) {
           {pending ? "Going live…" : "Go live"}
         </Button>
       </div>
+
+      {blockedReason && (
+        <p className="mt-2 text-sm font-medium text-coral-dark">
+          {blockedReason}
+        </p>
+      )}
 
       {error && (
         <p role="alert" className="mt-2 text-sm font-medium text-coral-dark">
