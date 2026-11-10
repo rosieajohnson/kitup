@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { moneyExact, money } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { boldIncludes } from "@/lib/bold-includes";
 import type { ItemWithFunding } from "@/lib/types";
 import { useCart } from "@/components/cart/cart-context";
 import {
@@ -132,7 +133,7 @@ export function FundableItem({
           )}
           {item.product?.description && (
             <p className="mt-1 text-xs leading-relaxed text-ink-faint">
-              {item.product.description}
+              {boldIncludes(item.product.description)}
             </p>
           )}
           {item.product && (

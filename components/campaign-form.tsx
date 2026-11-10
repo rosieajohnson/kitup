@@ -16,6 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { money, moneyExact } from "@/lib/format";
+import { boldIncludes } from "@/lib/bold-includes";
 import type { HartSportProduct } from "@/lib/types";
 import { createCampaign } from "@/app/dashboard/campaigns/new/actions";
 import { updateCampaign } from "@/app/dashboard/campaigns/[id]/edit/actions";
@@ -509,7 +510,7 @@ export function CampaignForm({
                                       title={p.description}
                                       className="mt-0.5 line-clamp-2 cursor-help text-xs leading-relaxed text-ink-faint hover:line-clamp-none"
                                     >
-                                      {p.description}
+                                      {boldIncludes(p.description)}
                                     </p>
                                   )}
                                 </div>
