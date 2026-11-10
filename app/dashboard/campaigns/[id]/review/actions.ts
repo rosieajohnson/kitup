@@ -4,9 +4,57 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
-import { resolveActiveSchool, canPublish } from "@/lib/team";
+import { resolveActiveSchool, canPublish, canManageSchool } from "@/lib/team";
 import { notifyAdminCampaignLive } from "@/lib/notify";
 import { DELIVERY_CONFIRM_READY } from "@/lib/profile";
+
+/**
+ * Confirm the school's delivery address as-is (one click, no re-validation).
+ * Sets schools.delivery_confirmed = true. Owner-only (the schools row is
+ * owner-writable under RLS). Requires a non-empty address to confirm.
+ */
+export async function confirmDeliveryAddress(
+  campaignId: string,
+): Promise<{ error?: string } | { ok: true }> {
+  if (!isSupabaseConfigured()) {
+    return { error: "This needs Supabase connected." };
+  }
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Sign in as the owning school." };
+
+  const active = await resolveActiveSchool(supabase, user.id);
+  if (!active) return { error: "You can only confirm your own school's address." };
+  if (!canManageSchool(active.role)) {
+    return {
+      error:
+        "Only the school owner can confirm the delivery address — ask them to confirm it.",
+    };
+  }
+
+  const { data: school } = await supabase
+    .from("schools")
+    .select("address")
+    .eq("id", active.schoolId)
+    .single();
+  if (!school?.address?.trim()) {
+    return {
+      error: "There's no delivery address to confirm yet — use Edit to add one.",
+    };
+  }
+
+  const { error } = await supabase
+    .from("schools")
+    .update({ delivery_confirmed: true })
+    .eq("id", active.schoolId);
+  if (error) return { error: error.message };
+
+  revalidatePath(`/dashboard/campaigns/${campaignId}/review`);
+  revalidatePath("/dashboard/profile");
+  return { ok: true };
+}
 
 /**
  * Publish a draft campaign ("go live"). Only owners and editors may do this

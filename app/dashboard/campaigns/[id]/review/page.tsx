@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/server";
 import { DELIVERY_CONFIRM_READY } from "@/lib/profile";
 import { money, moneyExact, shortDate, deadlineLabel } from "@/lib/format";
 import { PublishButton } from "@/components/publish-button";
+import { DeliveryConfirm } from "@/components/delivery-confirm";
 
 export const metadata = { title: "Review & go live" };
 
@@ -136,16 +137,14 @@ export default async function ReviewCampaignPage({ params }: Params) {
             <div className="mt-3 rounded-lg border border-coral/30 bg-coral/5 p-4">
               <p className="inline-flex items-start gap-2 text-sm font-medium text-coral-dark">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-                Your delivery address isn&apos;t confirmed yet. Campaigns can&apos;t
-                go live until it is — so funded gear always has a verified place
-                to ship to.
+                {school?.address?.trim()
+                  ? "Is the delivery address above correct? Confirm it to go live, or edit it first. Campaigns can't go live until the address is confirmed."
+                  : "Add a delivery address before going live, so funded gear has a verified place to ship to."}
               </p>
-              <Link
-                href="/dashboard/profile"
-                className="mt-3 inline-block text-sm font-semibold text-coral hover:text-coral-dark"
-              >
-                Confirm your delivery address →
-              </Link>
+              <DeliveryConfirm
+                campaignId={campaign.id}
+                hasAddress={Boolean(school?.address?.trim())}
+              />
             </div>
           )}
         </section>
