@@ -170,7 +170,9 @@ async function notifyAdmin(
         .in("id", campaignIds),
       admin
         .from("items")
-        .select("id, title, product:hart_sport_products(hart_sku)")
+        .select(
+          "id, title, cost, quantity_needed, product:hart_sport_products(hart_sku, unit_price)",
+        )
         .in("id", itemIds),
     ]);
     const schoolIds = Array.from(
@@ -314,6 +316,30 @@ async function notifyAdmin(
     // Thank-you to the donor, from Kit Up (not the ASF tax receipt — ASF issues
     // that). Only if we captured an email. Best-effort.
     if (payerEmail) {
+      // Per-item funding state (after this donation was recorded), to mark each
+      // line fully vs partially funded.
+      const { data: itemFunding } = await admin
+        .from("item_funding")
+        .select("item_id, quantity_funded, amount_raised")
+        .in("item_id", itemIds);
+      const fundingByItem = new Map(
+        (itemFunding ?? []).map((f) => [f.item_id, f]),
+      );
+      const isFullyFunded = (
+        it: { id: string; cost: number; quantity_needed: number; product?: unknown } | undefined,
+      ): boolean => {
+        if (!it) return false;
+        const f = fundingByItem.get(it.id);
+        if (PARTIAL_FUNDING_READY) {
+          const product = Array.isArray(it.product) ? it.product[0] : it.product;
+          const unit = (product as { unit_price?: number | null } | null)?.unit_price ?? Number(it.cost);
+          const total = Math.round(unit * (it.quantity_needed ?? 0) * 100) / 100;
+          const raised = Number(f?.amount_raised ?? 0);
+          return total > 0 && raised >= total - 0.005;
+        }
+        return Number(f?.quantity_funded ?? 0) >= (it.quantity_needed ?? 0);
+      };
+
       await notifyDonorThankYou({
         donorName: payerName,
         donorEmail: payerEmail,
@@ -326,8 +352,18 @@ async function notifyAdmin(
             itemTitle: it?.title ?? "an item",
             quantity: l.q,
             amount: l.a,
+            fullyFunded: isFullyFunded(it),
           };
         }),
+        impacts: profiles.map((p) => ({
+          campaignTitle: p.campaignTitle,
+          schoolName: p.schoolName,
+          studentsReached: p.impact?.studentsReached ?? null,
+          barrier: p.impact?.barrier ?? "",
+          usageContext: p.impact?.usageContext ?? "",
+          usageFrequency: p.impact?.usageFrequency ?? "",
+          participationGoal: p.impact?.participationGoal ?? "",
+        })),
         donationTotal,
         feeTotal: feeTotal > 0.005 ? feeTotal : null,
         dateISO,

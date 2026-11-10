@@ -987,12 +987,28 @@ export interface DonorThankYouLine {
   itemTitle: string;
   quantity: number;
   amount: number;
+  /** Whether the item is fully funded as of this donation (else partially). */
+  fullyFunded: boolean;
+}
+
+/** Per-campaign impact note, shown warmly to the donor. Only rendered when it
+ *  has content. */
+export interface DonorImpactSection {
+  campaignTitle: string;
+  schoolName: string | null;
+  studentsReached: number | null;
+  barrier: string;
+  usageContext: string;
+  usageFrequency: string;
+  participationGoal: string;
 }
 
 export interface DonorThankYou {
   donorName: string | null;
   donorEmail: string;
   lines: DonorThankYouLine[];
+  /** Per-campaign impact notes (only ones with content get rendered). */
+  impacts: DonorImpactSection[];
   /** The donation itself (excludes the optional fundraising-costs fee). */
   donationTotal: number;
   /** The "cover our costs" fee, if the donor opted in — else null. */
@@ -1038,15 +1054,67 @@ export async function notifyDonorThankYou(n: DonorThankYou): Promise<boolean> {
   const taxNote =
     "Through our partnership with the Australian Sports Foundation, any donation of $2 or more is tax deductible. The ASF will issue your tax-deductible receipt separately — this email is just our thank-you.";
 
+  // --- partial-funding helpers ---
+  const joinNames = (arr: string[]) =>
+    arr.length === 0
+      ? "the school"
+      : arr.length === 1
+        ? arr[0]
+        : arr.length === 2
+          ? `${arr[0]} and ${arr[1]}`
+          : `${arr.slice(0, -1).join(", ")} and ${arr[arr.length - 1]}`;
+  const partialLines = n.lines.filter((l) => !l.fullyFunded);
+  const partialSchools = Array.from(
+    new Set(partialLines.map((l) => l.schoolName).filter(Boolean) as string[]),
+  );
+  const anyPartial = partialLines.length > 0;
+  const plural = partialLines.length > 1;
+
+  // --- impact helpers ---
+  const impactHas = (s: DonorImpactSection) =>
+    Boolean(
+      s.studentsReached ||
+        s.barrier ||
+        s.usageContext ||
+        s.usageFrequency ||
+        s.participationGoal,
+    );
+  const howUsed = (s: DonorImpactSection) => {
+    const freq = s.usageFrequency
+      ? s.usageFrequency.charAt(0).toLowerCase() + s.usageFrequency.slice(1)
+      : "";
+    return [s.usageContext, freq].filter(Boolean).join(", ");
+  };
+  const impactSections = n.impacts.filter(impactHas);
+
+  // ---- plain text ----
+  const statusText = (l: DonorThankYouLine) =>
+    l.fullyFunded ? "fully funded" : "partially funded";
   const itemised = n.lines
     .map(
       (l) =>
-        `  • ${l.itemTitle}${l.quantity > 1 ? ` × ${l.quantity}` : ""} — ${money(l.amount)}  (${l.campaignTitle})`,
+        `  • ${l.itemTitle}${l.quantity > 1 ? ` × ${l.quantity}` : ""} — ${money(l.amount)} (${statusText(l)}) — ${l.campaignTitle}`,
     )
     .join("\n");
+  const partialText = anyPartial
+    ? `\nOne or more of the items you gave to aren't fully funded just yet. We'll let ${joinNames(partialSchools)} know ${plural ? "they're" : "it's"} partially funded. If an item isn't fully funded by the time its campaign closes, your contribution goes to the school as a Hart Sport gift card — so not a cent is wasted and it still buys sports gear for the students.\n`
+    : "";
+  const impactText = impactSections
+    .map((s) => {
+      const where = s.schoolName ?? s.campaignTitle;
+      const rows = [`Your impact at ${where}:`];
+      if (s.studentsReached)
+        rows.push(`  Your gift helps up to ${s.studentsReached} students get active.`);
+      if (s.barrier) rows.push(`  Why it's needed: ${s.barrier}`);
+      const how = howUsed(s);
+      if (how) rows.push(`  How it'll be used: ${how}`);
+      if (s.participationGoal) rows.push(`  The goal: ${s.participationGoal}`);
+      return rows.join("\n");
+    })
+    .join("\n\n");
   const feeLine =
     n.feeTotal && n.feeTotal > 0.005
-      ? `\nYou also chipped in ${money(n.feeTotal)} to help cover our fundraising costs — thank you, that genuinely helps keep Kit Up running.\n`
+      ? `\nYou also chipped in ${money(n.feeTotal)} to help cover our platform costs — thank you, that genuinely helps keep Kit Up running.\n`
       : "";
   const text = `${greeting}
 
@@ -1056,21 +1124,53 @@ Here's what you funded:
 ${itemised}
 
   Your donation: ${money(n.donationTotal)}
-${feeLine}
+${partialText}${impactText ? `\n${impactText}\n` : ""}${feeLine}
 ${taxNote}
 
-We'll let the school know their gear is funded. Thank you for backing local schools.
+Thank you for backing local schools.
 
 — The Kit Up team
 ${date} · Ref KU-${n.sessionId.slice(-10).toUpperCase()}`;
 
+  // ---- HTML ----
+  const chip = (full: boolean) =>
+    full
+      ? `<span style="display:inline-block;margin-top:5px;font-size:11px;font-weight:700;color:#1f7a4d;background:#e6f4ec;border-radius:999px;padding:2px 9px">✓ Fully funded</span>`
+      : `<span style="display:inline-block;margin-top:5px;font-size:11px;font-weight:700;color:#b26a00;background:#fbf0dd;border-radius:999px;padding:2px 9px">◐ Partially funded</span>`;
   const rows = n.lines
     .map(
       (l) => `<tr>
-      <td style="padding:7px 8px;border-bottom:1px solid #eee">${esc(l.itemTitle)}${l.quantity > 1 ? ` <span style="color:#888">× ${l.quantity}</span>` : ""}<div style="font-size:12px;color:#888">${esc(l.campaignTitle)}</div></td>
-      <td style="padding:7px 8px;border-bottom:1px solid #eee;text-align:right;white-space:nowrap">${money(l.amount)}</td>
+      <td style="padding:7px 8px;border-bottom:1px solid #eee">${esc(l.itemTitle)}${l.quantity > 1 ? ` <span style="color:#888">× ${l.quantity}</span>` : ""}<div style="font-size:12px;color:#888">${esc(l.campaignTitle)}</div>${chip(l.fullyFunded)}</td>
+      <td style="padding:7px 8px;border-bottom:1px solid #eee;text-align:right;white-space:nowrap;vertical-align:top">${money(l.amount)}</td>
     </tr>`,
     )
+    .join("");
+  const partialHtml = anyPartial
+    ? `<div style="font-size:13px;line-height:1.55;color:#6b4a12;margin:14px 0;padding:12px 14px;background:#fbf0dd;border-radius:8px"><strong>About the partially funded item${plural ? "s" : ""}</strong><br>One or more of the items you gave to aren't fully funded just yet. We'll let ${esc(joinNames(partialSchools))} know ${plural ? "they're" : "it's"} partially funded. If an item isn't fully funded by the time its campaign closes, your contribution goes to the school as a Hart Sport gift card — so not a cent is wasted and it still buys sports gear for the students.</div>`
+    : "";
+  const impactHtml = impactSections
+    .map((s) => {
+      const where = esc(s.schoolName ?? s.campaignTitle);
+      const detailRows: [string, string][] = [];
+      if (s.barrier) detailRows.push(["Why it's needed", s.barrier]);
+      const how = howUsed(s);
+      if (how) detailRows.push(["How it'll be used", how]);
+      if (s.participationGoal) detailRows.push(["The goal", s.participationGoal]);
+      const lead = s.studentsReached
+        ? `Your gift helps up to <strong>${s.studentsReached} students</strong> get active. Here's what the school told us about why it matters:`
+        : `Here's what the school told us about why it matters:`;
+      const tbl = detailRows
+        .map(
+          ([k, v]) =>
+            `<tr><td style="padding:3px 10px 3px 0;color:#9a5a49;vertical-align:top">${esc(k)}</td><td style="padding:3px 0">${esc(v)}</td></tr>`,
+        )
+        .join("");
+      return `<div style="margin:18px 0;padding:14px 16px;background:#fff4f1;border:1px solid #f6d7cd;border-radius:10px">
+      <h3 style="font-size:14px;margin:0 0 8px;color:#e5533c">Your impact at ${where}</h3>
+      <p style="font-size:14px;line-height:1.55;margin:0 0 8px;color:#1a1a1a">${lead}</p>
+      ${tbl ? `<table style="border-collapse:collapse;font-size:13.5px;line-height:1.5">${tbl}</table>` : ""}
+    </div>`;
+    })
     .join("");
   const html = `<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;color:#1a1a1a">
     <h2 style="margin:0 0 4px;color:#e5533c">Thank you! 🧡</h2>
@@ -1084,13 +1184,15 @@ ${date} · Ref KU-${n.sessionId.slice(-10).toUpperCase()}`;
         <td style="padding:9px 8px;text-align:right;font-weight:bold;white-space:nowrap">${money(n.donationTotal)}</td>
       </tr></tfoot>
     </table>
+    ${partialHtml}
+    ${impactHtml}
     ${
       n.feeTotal && n.feeTotal > 0.005
-        ? `<p style="font-size:13px;line-height:1.5;color:#555;margin:12px 0">You also chipped in <strong>${money(n.feeTotal)}</strong> to help cover our fundraising costs — thank you, that genuinely helps keep Kit Up running.</p>`
+        ? `<p style="font-size:13px;line-height:1.5;color:#555;margin:12px 0">You also chipped in <strong>${money(n.feeTotal)}</strong> to help cover our platform costs — thank you, that genuinely helps keep Kit Up running.</p>`
         : ""
     }
     <p style="font-size:13px;line-height:1.5;color:#555;margin:16px 0;padding:12px 14px;background:#f7f7f5;border-radius:8px">${esc(taxNote)}</p>
-    <p style="font-size:15px;line-height:1.5;margin:12px 0">We'll let the school know their gear is funded. Thank you for backing local schools.</p>
+    <p style="font-size:15px;line-height:1.5;margin:12px 0">Thank you for backing local schools.</p>
     <p style="font-size:14px;margin:18px 0 2px">— The Kit Up team</p>
     <p style="font-size:12px;color:#999;margin:0">${date} · Ref KU-${esc(n.sessionId.slice(-10).toUpperCase())}</p>
   </div>`;
