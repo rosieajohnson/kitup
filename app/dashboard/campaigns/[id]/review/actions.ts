@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { resolveActiveSchool, canPublish } from "@/lib/team";
+import { notifyAdminCampaignLive } from "@/lib/notify";
 
 /**
  * Publish a draft campaign ("go live"). Only owners and editors may do this
@@ -33,18 +34,65 @@ export async function publishCampaign(
     };
   }
 
+  // Only email the admin on a genuine draft -> live transition (not a re-publish).
+  const { data: before } = await supabase
+    .from("campaigns")
+    .select("status")
+    .eq("id", campaignId)
+    .eq("school_id", active.schoolId)
+    .single();
+  const wasLive = before?.status === "live";
+
   const { data, error } = await supabase
     .from("campaigns")
     .update({ status: "live" })
     .eq("id", campaignId)
     .eq("school_id", active.schoolId)
-    .select("id")
+    .select("id, title, deadline")
     .single();
 
   if (error || !data) {
     return {
       error: error?.message ?? "Could not publish — are you the owner?",
     };
+  }
+
+  // Best-effort: email the admin the full item list now the campaign is live.
+  // Never let a notification failure block publishing.
+  if (!wasLive) {
+    try {
+      const [{ data: items }, { data: school }] = await Promise.all([
+        supabase
+          .from("items")
+          .select("title, quantity_needed, cost, product:hart_sport_products ( hart_sku )")
+          .eq("campaign_id", campaignId),
+        supabase.from("schools").select("school").eq("id", active.schoolId).single(),
+      ]);
+      if (items?.length) {
+        const lines = items.map((it) => {
+          const p = Array.isArray(it.product) ? it.product[0] : it.product;
+          const quantity = it.quantity_needed ?? 0;
+          const unitPrice = Number(it.cost) || 0;
+          return {
+            sku: (p as { hart_sku?: string } | null)?.hart_sku ?? null,
+            title: it.title,
+            quantity,
+            unitPrice,
+            lineTotal: unitPrice * quantity,
+          };
+        });
+        await notifyAdminCampaignLive({
+          campaignId,
+          campaignTitle: data.title,
+          schoolName: school?.school ?? "(unknown school)",
+          deadlineISO: data.deadline,
+          lines,
+          total: lines.reduce((s, l) => s + l.lineTotal, 0),
+        });
+      }
+    } catch (e) {
+      console.error("notifyAdminCampaignLive failed", e);
+    }
   }
 
   revalidatePath("/");

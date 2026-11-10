@@ -319,6 +319,110 @@ deliver to the school address above.
   return sendEmail(SUPPLIER_RECIPIENT, subject, text, html);
 }
 
+export interface CampaignLiveLine {
+  sku: string | null;
+  title: string;
+  quantity: number;
+  unitPrice: number;
+  lineTotal: number;
+}
+
+export interface CampaignLiveNotice {
+  campaignId: string;
+  campaignTitle: string;
+  schoolName: string;
+  deadlineISO: string | null;
+  lines: CampaignLiveLine[];
+  total: number;
+}
+
+/**
+ * Admin notice sent automatically when a school publishes a campaign ("go
+ * live"), listing every item on the campaign with quantities and value.
+ * Goes to the admin inbox (ADMIN_RECIPIENT).
+ */
+export async function notifyAdminCampaignLive(
+  n: CampaignLiveNotice,
+): Promise<boolean> {
+  const subject = `[Kit Up] Campaign live — ${n.schoolName} — ${n.campaignTitle} (${money(n.total)})`;
+  const deadline = n.deadlineISO
+    ? new Date(n.deadlineISO).toLocaleDateString("en-AU", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      })
+    : "—";
+  const url = `${APP_URL}/campaigns/${n.campaignId}`;
+
+  // ---- plain text ----
+  const pad = (s: string, w: number) => (s + " ".repeat(w)).slice(0, w);
+  const clip = (s: string, w: number) =>
+    s.length > w - 1 ? s.slice(0, w - 2) + "…" : s;
+  const rows = n.lines
+    .map(
+      (l) =>
+        "  " +
+        pad(l.sku ?? "—", 12) +
+        pad(clip(l.title, 36), 36) +
+        pad(String(l.quantity), 5) +
+        pad(money(l.unitPrice), 11) +
+        money(l.lineTotal),
+    )
+    .join("\n");
+  const text = `A campaign has just gone live on Kit Up.
+
+School:   ${n.schoolName}
+Campaign: ${n.campaignTitle}
+Deadline: ${deadline}
+Page:     ${url}
+
+  ${pad("SKU", 12)}${pad("ITEM", 36)}${pad("QTY", 5)}${pad("UNIT", 11)}TOTAL
+  ${"-".repeat(68)}
+${rows}
+  ${"-".repeat(68)}
+  ${pad("", 53)}TOTAL VALUE: ${money(n.total)}
+
+— Kit Up admin`;
+
+  // ---- HTML ----
+  const htmlRows = n.lines
+    .map(
+      (l) => `<tr>
+        <td style="padding:6px 10px;border-bottom:1px solid #eee;font-family:monospace">${esc(l.sku ?? "—")}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #eee">${esc(l.title)}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #eee;text-align:center">${l.quantity}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #eee;text-align:right">${money(l.unitPrice)}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #eee;text-align:right">${money(l.lineTotal)}</td>
+      </tr>`,
+    )
+    .join("");
+  const html = `<div style="font-family:Arial,Helvetica,sans-serif;max-width:640px;color:#1a1a1a">
+    <h2 style="margin:0 0 4px;color:#e5533c">Campaign live</h2>
+    <div style="margin:12px 0;padding:12px 14px;background:#f7f7f5;border-radius:8px;font-size:14px;line-height:1.6">
+      <div><span style="color:#888">School:</span> <strong>${esc(n.schoolName)}</strong></div>
+      <div><span style="color:#888">Campaign:</span> ${esc(n.campaignTitle)}</div>
+      <div><span style="color:#888">Deadline:</span> ${esc(deadline)}</div>
+      <div><span style="color:#888">Page:</span> <a href="${url}">${url}</a></div>
+    </div>
+    <table style="border-collapse:collapse;width:100%;font-size:14px">
+      <thead><tr style="text-align:left;color:#555;font-size:12px;text-transform:uppercase">
+        <th style="padding:6px 10px">SKU</th><th style="padding:6px 10px">Item</th>
+        <th style="padding:6px 10px;text-align:center">Qty</th>
+        <th style="padding:6px 10px;text-align:right">Unit</th>
+        <th style="padding:6px 10px;text-align:right">Total</th>
+      </tr></thead>
+      <tbody>${htmlRows}</tbody>
+      <tfoot><tr>
+        <td colspan="4" style="padding:10px;text-align:right;font-weight:bold">Total value</td>
+        <td style="padding:10px;text-align:right;font-weight:bold">${money(n.total)}</td>
+      </tr></tfoot>
+    </table>
+    <p style="font-size:12px;color:#999">— Kit Up admin</p>
+  </div>`;
+
+  return sendAdminEmail(subject, text, html);
+}
+
 export interface SchoolProfileNotice {
   campaignTitle: string;
   schoolName: string;
