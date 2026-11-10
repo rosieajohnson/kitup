@@ -483,7 +483,7 @@ export function CampaignForm({
                             )}
                           >
                             <td className="px-3 py-2">
-                              <div className="flex items-center gap-3">
+                              <div className="flex items-start gap-3">
                                 <div className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-lg border border-line bg-canvas">
                                   {p.image_url ? (
                                     <Image
@@ -500,9 +500,16 @@ export function CampaignForm({
                                     />
                                   )}
                                 </div>
-                                <span className="font-medium text-ink">
-                                  {p.name}
-                                </span>
+                                <div className="min-w-0">
+                                  <span className="font-medium text-ink">
+                                    {p.name}
+                                  </span>
+                                  {p.description && (
+                                    <p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-ink-faint">
+                                      {p.description}
+                                    </p>
+                                  )}
+                                </div>
                               </div>
                             </td>
                             <td className="hidden px-3 py-2 font-mono text-xs text-ink-faint sm:table-cell">
