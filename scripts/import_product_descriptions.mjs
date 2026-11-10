@@ -13,6 +13,10 @@ import { readFileSync } from "node:fs";
 
 const SHOPIFY_BASE = "https://hartsport.com.au";
 const MAX_LEN = 600;
+// Kits/sets list their contents (incl. quantities); never truncate that list.
+const KIT_MAX_LEN = 1800;
+const CONTENTS_RE =
+  /\b(kit includes?|set includes?|includes?|contains?|consisting of|comprising|kit of)\b/i;
 
 const envText = readFileSync(new URL("../.env.local", import.meta.url), "utf8");
 const env = Object.fromEntries(
@@ -42,8 +46,10 @@ function clean(html) {
     .replace(/&[a-z]+;/gi, " ")
     .replace(/\s+/g, " ")
     .trim();
-  if (t.length > MAX_LEN) {
-    t = t.slice(0, MAX_LEN);
+  // Allow a longer description for kits so the contents list isn't cut off.
+  const cap = CONTENTS_RE.test(t) ? KIT_MAX_LEN : MAX_LEN;
+  if (t.length > cap) {
+    t = t.slice(0, cap);
     const cut = t.lastIndexOf(" ");
     if (cut > 0) t = t.slice(0, cut);
     t = t.replace(/[.,;:]$/, "") + "…";
