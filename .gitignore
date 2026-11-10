@@ -18,6 +18,11 @@
 .DS_Store
 *.pem
 
+# analysis artifacts (regenerable, not source)
+/catalogue_expansion_ready.csv
+/catalogue_gap_missing_skus.csv
+_tmp_*.mjs
+
 # debug
 npm-debug.log*
 yarn-debug.log*

@@ -66,6 +66,8 @@ export interface HartSportProduct {
   product_url: string | null;
   /** Self-hosted product photo (e.g. /hart/4-226.webp), or null if none. */
   image_url: string | null;
+  /** Catalogue description (incl. set/pack contents), from the Hart catalogue. */
+  description: string | null;
   synced_at: string;
 }
 

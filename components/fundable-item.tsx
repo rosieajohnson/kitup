@@ -130,6 +130,11 @@ export function FundableItem({
           {item.description && (
             <p className="mt-1 text-sm text-ink-soft">{item.description}</p>
           )}
+          {item.product?.description && (
+            <p className="mt-1 text-xs leading-relaxed text-ink-faint">
+              {item.product.description}
+            </p>
+          )}
           {item.product && (
             <a
               href={item.product.product_url ?? "#"}
