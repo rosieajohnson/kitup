@@ -308,19 +308,6 @@ export function CartDrawer() {
                         {copy.platformCosts.description}
                       </p>
                     </div>
-                    <div>
-                      <div className="flex items-baseline justify-between font-medium text-ink">
-                        <span>
-                          {copy.processing.label} ({feePct(copy.processing.rate)})
-                        </span>
-                        <span className="tabular-nums">
-                          {moneyExact(fee.processing)}
-                        </span>
-                      </div>
-                      <p className="mt-0.5 leading-relaxed text-ink-soft">
-                        {copy.processing.description}
-                      </p>
-                    </div>
                     <label className="flex items-start gap-2 border-t border-line pt-2 text-ink-soft">
                       <input
                         type="checkbox"
