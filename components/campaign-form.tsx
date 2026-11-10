@@ -505,7 +505,10 @@ export function CampaignForm({
                                     {p.name}
                                   </span>
                                   {p.description && (
-                                    <p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-ink-faint">
+                                    <p
+                                      title={p.description}
+                                      className="mt-0.5 line-clamp-2 cursor-help text-xs leading-relaxed text-ink-faint hover:line-clamp-none"
+                                    >
                                       {p.description}
                                     </p>
                                   )}
