@@ -7,7 +7,7 @@
  * A single blanket platform-costs fee (currently 5%).
  */
 export const FEE_RATES = {
-  platformCosts: 0.05, // blanket Kit Up platform costs (covers running the platform + payment processing)
+  platformCosts: 0.05, // blanket Kit Up platform costs
 } as const;
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -35,7 +35,7 @@ export function feeCopy(schoolLabel: string) {
     platformCosts: {
       label: "Platform costs",
       rate: FEE_RATES.platformCosts,
-      description: `A flat ${feePct(FEE_RATES.platformCosts)} of each donation is used by Kit Up to help cover the costs of running a fundraising platform — including payment processing — and providing support to fundraisers like ${schoolLabel}.`,
+      description: `A flat ${feePct(FEE_RATES.platformCosts)} of each donation is used by Kit Up to help cover the costs of running a fundraising platform and providing support to fundraisers like ${schoolLabel}.`,
     },
   };
 }
