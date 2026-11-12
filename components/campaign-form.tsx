@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { money, moneyExact } from "@/lib/format";
 import { boldIncludes } from "@/lib/bold-includes";
+import { matchesCatalogue } from "@/lib/catalogue-search";
 import type { HartSportProduct } from "@/lib/types";
 import { createCampaign } from "@/app/dashboard/campaigns/new/actions";
 import { updateCampaign } from "@/app/dashboard/campaigns/[id]/edit/actions";
@@ -104,15 +105,16 @@ export function CampaignForm({
     return d.toISOString().slice(0, 10);
   }, []);
 
-  // Filter the (large) catalogue by name or category as the school types.
+  // Filter the (large) catalogue as the school types. Matches name, category,
+  // SKU and description, with multi-word + synonym awareness so lay terms like
+  // "gym equipment" surface weights, etc. (see lib/catalogue-search).
   const filtered = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    if (!needle) return catalogue;
-    return catalogue.filter(
-      (p) =>
-        p.name.toLowerCase().includes(needle) ||
-        (p.category ?? "").toLowerCase().includes(needle) ||
-        p.hart_sku.toLowerCase().includes(needle),
+    if (!query.trim()) return catalogue;
+    return catalogue.filter((p) =>
+      matchesCatalogue(
+        `${p.name} ${p.category ?? ""} ${p.hart_sku} ${p.description ?? ""}`,
+        query,
+      ),
     );
   }, [catalogue, query]);
 
