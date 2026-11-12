@@ -421,17 +421,24 @@ async function notifyAdmin(
 
       const { data: funding } = await admin
         .from("item_funding")
-        .select("item_id, quantity_funded")
+        .select("item_id, quantity_funded, amount_raised")
         .in(
           "item_id",
           items.map((i) => i.id),
         );
-      const fundedById = new Map(
-        (funding ?? []).map((f) => [f.item_id, Number(f.quantity_funded)]),
+      const fundingById = new Map(
+        (funding ?? []).map((f) => [f.item_id, f]),
       );
-      const fullyFunded = items.every(
-        (i) => (fundedById.get(i.id) ?? 0) >= i.quantity_needed,
-      );
+      // "Fully funded" is dollar-based in per-dollar mode (every item's raised
+      // dollars meet its cost), and quantity-based in whole-unit mode.
+      const fullyFunded = items.every((i) => {
+        const f = fundingById.get(i.id);
+        if (PARTIAL_FUNDING_READY) {
+          const total = Math.round(Number(i.cost) * i.quantity_needed * 100) / 100;
+          return total > 0 && Number(f?.amount_raised ?? 0) >= total - 0.005;
+        }
+        return Number(f?.quantity_funded ?? 0) >= i.quantity_needed;
+      });
       if (!fullyFunded) continue;
 
       // A fully-funded campaign closes now — send the reconciliation ledger
