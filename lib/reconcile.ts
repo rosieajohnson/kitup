@@ -30,7 +30,7 @@ function invoiceRef(sessionId: string | null): string {
 export async function reconcileCampaign(
   admin: SupabaseClient,
   campaignId: string,
-  reason: "fully funded" | "deadline reached",
+  reason: "fully funded" | "deadline reached" | "closed early",
 ): Promise<boolean> {
   if (!RECONCILE_READY) return false;
 

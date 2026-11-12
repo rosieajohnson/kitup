@@ -6,6 +6,7 @@ import { getStripe, isStripeConfigured } from "@/lib/stripe";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { markSessionRefunded } from "@/lib/payments";
+import { reconcileCampaign } from "@/lib/reconcile";
 
 /**
  * Reconcile refunds from Stripe (ASF admin only). Pulls recent refunds,
@@ -67,6 +68,27 @@ export async function archiveCampaign(formData: FormData): Promise<void> {
     .update({ status: "archived" })
     .eq("id", id);
   if (error) console.error("archiveCampaign failed:", error.message);
+  revalidatePath("/admin");
+  revalidatePath("/");
+}
+
+/**
+ * Close a live campaign early (ASF admin). Reconciles now — orders funded
+ * items, rolls partially-funded items into one gift card, emails the ledger —
+ * then archives it so it stops taking funding. Mirrors a deadline close.
+ */
+export async function closeCampaign(formData: FormData): Promise<void> {
+  const viewer = await getViewer();
+  if (!viewer.isAdmin) return;
+  const id = String(formData.get("campaign_id") ?? "");
+  if (!id) return;
+  const admin = createAdminClient();
+  await reconcileCampaign(admin, id, "closed early");
+  const { error } = await admin
+    .from("campaigns")
+    .update({ status: "archived" })
+    .eq("id", id);
+  if (error) console.error("closeCampaign failed:", error.message);
   revalidatePath("/admin");
   revalidatePath("/");
 }

@@ -7,6 +7,62 @@ import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { resolveActiveSchool, canPublish, canManageSchool } from "@/lib/team";
 import { notifyAdminCampaignLive } from "@/lib/notify";
 import { DELIVERY_CONFIRM_READY } from "@/lib/profile";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { reconcileCampaign } from "@/lib/reconcile";
+
+/**
+ * Close a live campaign early (before its deadline). Owner/editor only.
+ * Runs reconciliation now — funded items are ordered and any partially-funded
+ * items roll into one Hart Sport gift card, with the ledger emailed — then marks
+ * the campaign archived so it stops taking funding. Mirrors a deadline close.
+ */
+export async function closeCampaign(
+  campaignId: string,
+): Promise<{ error?: string } | void> {
+  if (!isSupabaseConfigured()) {
+    return { error: "Closing needs Supabase connected." };
+  }
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Sign in as the owning school." };
+
+  const active = await resolveActiveSchool(supabase, user.id);
+  if (!active) return { error: "You can only close your own school's campaigns." };
+  if (!canPublish(active.role)) {
+    return {
+      error:
+        "Contributors can't close campaigns — ask an editor or owner to close it.",
+    };
+  }
+
+  const { data: camp } = await supabase
+    .from("campaigns")
+    .select("status")
+    .eq("id", campaignId)
+    .eq("school_id", active.schoolId)
+    .single();
+  if (!camp) return { error: "Couldn't find that campaign." };
+  if (camp.status !== "live") {
+    return { error: "Only a live campaign can be closed." };
+  }
+
+  // Reconcile (order funded items + gift-card the shortfall + email ledger),
+  // then archive so funding stops. Uses the service-role client because
+  // reconciliation reads every purchase on the campaign.
+  const admin = createAdminClient();
+  await reconcileCampaign(admin, campaignId, "closed early");
+  const { error } = await admin
+    .from("campaigns")
+    .update({ status: "archived" })
+    .eq("id", campaignId);
+  if (error) return { error: error.message };
+
+  revalidatePath("/");
+  revalidatePath("/dashboard");
+  revalidatePath(`/campaigns/${campaignId}`);
+}
 
 /**
  * Confirm the school's delivery address as-is (one click, no re-validation).

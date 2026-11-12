@@ -10,6 +10,7 @@ import { money, shortDate } from "@/lib/format";
 import { DownloadReportButton } from "@/components/download-report-button";
 import { SyncRefundsButton } from "@/components/sync-refunds-button";
 import { archiveCampaign, restoreCampaign } from "./actions";
+import { AdminCloseButton } from "@/components/admin-close-button";
 
 export const metadata = { title: "ASF admin" };
 
@@ -130,21 +131,25 @@ export default async function AdminPage() {
                         </Button>
                       </form>
                     ) : (
-                      <form action={archiveCampaign}>
-                        <input
-                          type="hidden"
-                          name="campaign_id"
-                          value={c.campaign_id}
-                        />
-                        <Button
-                          type="submit"
-                          size="sm"
-                          variant="outline"
-                          className="border-coral/50 text-coral-dark hover:border-coral hover:bg-coral/10"
-                        >
-                          Archive
-                        </Button>
-                      </form>
+                      <div className="flex items-center justify-end gap-2">
+                        {c.status === "live" && (
+                          <AdminCloseButton campaignId={c.campaign_id} />
+                        )}
+                        <form action={archiveCampaign}>
+                          <input
+                            type="hidden"
+                            name="campaign_id"
+                            value={c.campaign_id}
+                          />
+                          <Button
+                            type="submit"
+                            size="sm"
+                            variant="outline"
+                          >
+                            Archive
+                          </Button>
+                        </form>
+                      </div>
                     )}
                   </td>
                 </tr>

@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { ProgressMeter } from "@/components/progress-meter";
 import { FundableItem, type FundMode } from "@/components/fundable-item";
 import { CampaignDonors } from "@/components/campaign-donors";
+import { CloseCampaignButton } from "@/components/close-campaign-button";
 import { getCampaign, getCampaignDonations } from "@/lib/data";
 import { getViewer } from "@/lib/auth";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
@@ -97,12 +98,13 @@ export default async function CampaignPage({ params }: Params) {
       )}
 
       {isOwner && campaign.status === "live" && (
-        <div className="mb-6">
+        <div className="mb-6 flex flex-wrap items-start gap-2">
           <Link href={`/dashboard/campaigns/${campaign.id}/edit`}>
             <Button variant="outline" size="sm">
               Edit campaign
             </Button>
           </Link>
+          <CloseCampaignButton campaignId={campaign.id} />
         </div>
       )}
 

@@ -671,7 +671,7 @@ export interface ReconcileLine {
 
 export interface ReconcileReport {
   campaignTitle: string;
-  reason: "fully funded" | "deadline reached";
+  reason: "fully funded" | "deadline reached" | "closed early";
   schoolName: string | null;
   deliveryAddress: string | null;
   deliveryConfirmed: boolean;
