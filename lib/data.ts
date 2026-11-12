@@ -51,6 +51,7 @@ interface ProductRow {
   unit_price: number | null;
   product_url: string | null;
   image_url: string | null;
+  image_url_2: string | null;
   description: string | null;
   synced_at: string;
 }
@@ -108,12 +109,18 @@ function schoolEmbed(): string {
 // >>> After applying migration 0025, set IMAGE_COLUMN_READY = true to show
 //     product photos on campaigns from live data. <<<
 const IMAGE_COLUMN_READY = true;
+// hart_sport_products.image_url_2 ships in migration 0041 + `npm run
+// sync:images2`. >>> After both, set IMAGE2_COLUMN_READY = true to show the
+// click-through second image. <<<
+const IMAGE2_COLUMN_READY = false;
 // hart_sport_products.description ships in migration 0040 + `npm run
 // import:descriptions`. >>> After both, set DESCRIPTION_COLUMN_READY = true. <<<
 const DESCRIPTION_COLUMN_READY = true;
 const PRODUCT_FIELDS = `id, hart_sku, name, category, unit_price, product_url${
   IMAGE_COLUMN_READY ? ", image_url" : ""
-}${DESCRIPTION_COLUMN_READY ? ", description" : ""}, synced_at`;
+}${IMAGE2_COLUMN_READY ? ", image_url_2" : ""}${
+  DESCRIPTION_COLUMN_READY ? ", description" : ""
+}, synced_at`;
 async function withAbnFallback<
   T extends { error: { code?: string } | null },
 >(run: () => PromiseLike<T>): Promise<T> {

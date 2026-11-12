@@ -11,7 +11,6 @@ import {
   Info,
   Lock,
   Search,
-  ImageOff,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -19,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { money, moneyExact } from "@/lib/format";
 import { boldIncludes } from "@/lib/bold-includes";
 import { matchesCatalogue } from "@/lib/catalogue-search";
+import { ProductImages } from "@/components/product-images";
 import type { HartSportProduct } from "@/lib/types";
 import { createCampaign } from "@/app/dashboard/campaigns/new/actions";
 import { updateCampaign } from "@/app/dashboard/campaigns/[id]/edit/actions";
@@ -572,35 +572,13 @@ export function CampaignForm({
                               : "border-line bg-surface hover:border-line-strong",
                           )}
                         >
-                          <button
-                            type="button"
-                            onClick={() =>
-                              p.image_url &&
-                              setZoom({ url: p.image_url, name: p.name })
-                            }
-                            disabled={!p.image_url}
-                            aria-label={
-                              p.image_url ? `Enlarge ${p.name}` : undefined
-                            }
-                            className="group relative mb-2 aspect-square w-full overflow-hidden rounded-lg border border-line bg-white"
-                          >
-                            {p.image_url ? (
-                              <Image
-                                src={p.image_url}
-                                alt={p.name}
-                                fill
-                                sizes="(max-width: 640px) 45vw, 200px"
-                                className="object-contain p-2 transition-transform group-hover:scale-105"
-                              />
-                            ) : (
-                              <div className="grid h-full w-full place-items-center">
-                                <ImageOff
-                                  className="h-6 w-6 text-ink-faint"
-                                  aria-hidden
-                                />
-                              </div>
+                          <ProductImages
+                            images={[p.image_url, p.image_url_2].filter(
+                              (u): u is string => Boolean(u),
                             )}
-                          </button>
+                            name={p.name}
+                            onZoom={(url) => setZoom({ url, name: p.name })}
+                          />
                           <p className="line-clamp-2 text-sm font-medium leading-snug text-ink">
                             {p.name}
                           </p>
