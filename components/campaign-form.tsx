@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useMemo, useRef, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import {
@@ -12,6 +12,7 @@ import {
   Lock,
   Search,
   ImageOff,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -99,24 +100,54 @@ export function CampaignForm({
       })) ?? [],
   );
   const [query, setQuery] = useState("");
+  // Selected sport/activity (category) filter — "" = all. Plus a lightbox for
+  // enlarging a product image.
+  const [activity, setActivity] = useState("");
+  const [zoom, setZoom] = useState<{ url: string; name: string } | null>(null);
 
   const minDeadline = useMemo(() => {
     const d = new Date(Date.now() + 86_400_000);
     return d.toISOString().slice(0, 10);
   }, []);
 
-  // Filter the (large) catalogue as the school types. Matches name, category,
-  // SKU and description, with multi-word + synonym awareness so lay terms like
-  // "gym equipment" surface weights, etc. (see lib/catalogue-search).
+  // All activities (categories), sorted, for the dropdown.
+  const categories = useMemo(() => {
+    const set = new Set<string>();
+    for (const p of catalogue) set.add(p.category ?? "Other");
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [catalogue]);
+
+  // The most-stocked activities, for one-tap filter chips.
+  const topActivities = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const p of catalogue) {
+      const c = p.category ?? "Other";
+      counts.set(c, (counts.get(c) ?? 0) + 1);
+    }
+    return Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8)
+      .map(([c]) => c);
+  }, [catalogue]);
+
+  // Filter by the chosen activity AND the search text. Search matches name,
+  // category, SKU and description, with multi-word + synonym awareness so lay
+  // terms like "gym equipment" surface weights (see lib/catalogue-search).
   const filtered = useMemo(() => {
-    if (!query.trim()) return catalogue;
-    return catalogue.filter((p) =>
-      matchesCatalogue(
-        `${p.name} ${p.category ?? ""} ${p.hart_sku} ${p.description ?? ""}`,
-        query,
-      ),
-    );
-  }, [catalogue, query]);
+    const q = query.trim();
+    return catalogue.filter((p) => {
+      if (activity && (p.category ?? "Other") !== activity) return false;
+      if (
+        q &&
+        !matchesCatalogue(
+          `${p.name} ${p.category ?? ""} ${p.hart_sku} ${p.description ?? ""}`,
+          query,
+        )
+      )
+        return false;
+      return true;
+    });
+  }, [catalogue, query, activity]);
 
   const grouped = useMemo(() => {
     const map = new Map<string, HartSportProduct[]>();
@@ -408,199 +439,291 @@ export function CampaignForm({
         </p>
 
         {catalogue.length > 0 && (
-          <div className="mt-4">
-            <label htmlFor="catalogue-search" className={labelCls}>
-              Search the catalogue
-            </label>
-            <div className="relative">
-              <Search
-                className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint"
-                aria-hidden
-              />
-              <input
-                id="catalogue-search"
-                type="search"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="e.g. netball, cones, gym mat, whistle…"
-                className={`${inputCls} pl-10`}
-              />
+          <div className="mt-4 space-y-3">
+            {/* Quick activity chips */}
+            <div className="flex flex-wrap gap-1.5">
+              <button
+                type="button"
+                onClick={() => setActivity("")}
+                className={cn(
+                  "rounded-full border px-3 py-1 text-xs font-semibold transition-colors",
+                  activity === ""
+                    ? "border-coral bg-coral/10 text-coral-dark"
+                    : "border-line-strong text-ink-soft hover:bg-surface-sunk",
+                )}
+              >
+                All activities
+              </button>
+              {topActivities.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setActivity(activity === c ? "" : c)}
+                  className={cn(
+                    "rounded-full border px-3 py-1 text-xs font-semibold transition-colors",
+                    activity === c
+                      ? "border-coral bg-coral/10 text-coral-dark"
+                      : "border-line-strong text-ink-soft hover:bg-surface-sunk",
+                  )}
+                >
+                  {c}
+                </button>
+              ))}
             </div>
-            {query.trim() && (
-              <p className="mt-1.5 text-xs text-ink-faint">
-                {filtered.length} product{filtered.length === 1 ? "" : "s"} match
-                &quot;{query.trim()}&quot;
+
+            {/* Full activity dropdown + search */}
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <label className="sr-only" htmlFor="catalogue-activity">
+                Filter by sport or activity
+              </label>
+              <select
+                id="catalogue-activity"
+                value={activity}
+                onChange={(e) => setActivity(e.target.value)}
+                className={`${inputCls} sm:max-w-[15rem]`}
+              >
+                <option value="">All activities ({catalogue.length})</option>
+                {categories.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+              <div className="relative flex-1">
+                <label className="sr-only" htmlFor="catalogue-search">
+                  Search the catalogue
+                </label>
+                <Search
+                  className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint"
+                  aria-hidden
+                />
+                <input
+                  id="catalogue-search"
+                  type="search"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Try “gym equipment”, “netball”, “cones”…"
+                  className={`${inputCls} pl-10`}
+                />
+              </div>
+            </div>
+
+            {(query.trim() || activity) && (
+              <p className="text-xs text-ink-faint">
+                {filtered.length} product{filtered.length === 1 ? "" : "s"}
+                {activity && (
+                  <>
+                    {" "}
+                    in{" "}
+                    <span className="font-semibold text-ink-soft">
+                      {activity}
+                    </span>
+                  </>
+                )}
+                {query.trim() && <> matching “{query.trim()}”</>}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setQuery("");
+                    setActivity("");
+                  }}
+                  className="ml-2 font-semibold text-coral hover:text-coral-dark"
+                >
+                  Clear
+                </button>
               </p>
             )}
           </div>
         )}
 
-        <div className="mt-4 overflow-hidden rounded-xl border border-line">
+        <div className="mt-4">
           {catalogue.length === 0 ? (
-            <p className="p-4 text-sm text-ink-soft">
+            <p className="rounded-xl border border-line p-4 text-sm text-ink-soft">
               Catalogue is empty — import products first.
             </p>
           ) : filtered.length === 0 ? (
-            <p className="p-4 text-sm text-ink-soft">
-              No products match your search.
+            <p className="rounded-xl border border-line p-4 text-sm text-ink-soft">
+              No products match — try a different activity or search.
             </p>
           ) : (
-            <div className="max-h-[32rem] overflow-y-auto">
-              <table className="w-full border-collapse text-sm">
-                <thead className="sticky top-0 z-10 bg-surface-sunk/95 backdrop-blur">
-                  <tr className="text-left text-xs font-semibold uppercase tracking-wide text-ink-faint">
-                    <th className="px-3 py-2">Item</th>
-                    <th className="hidden px-3 py-2 sm:table-cell">SKU</th>
-                    <th className="px-3 py-2 text-right">Price</th>
-                    <th className="px-3 py-2 text-right">Select</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {grouped.map(([cat, products]) => (
-                    <Fragment key={cat}>
-                      <tr>
-                        <td
-                          colSpan={4}
-                          className="border-t border-line bg-canvas px-3 py-1.5 text-xs font-bold text-ink-soft"
+            <div className="max-h-[42rem] space-y-6 overflow-y-auto rounded-xl border border-line p-3">
+              {grouped.map(([cat, products]) => (
+                <div key={cat}>
+                  <h4 className="mb-2 text-xs font-bold uppercase tracking-wide text-ink-faint">
+                    {cat}
+                  </h4>
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                    {products.map((p) => {
+                      const item = items.find(
+                        (it) => it.hart_product_id === p.id,
+                      );
+                      const selected = Boolean(item);
+                      const qty = item?.quantity_needed ?? 0;
+                      const funded = item?.quantity_funded ?? 0;
+                      const minQty = Math.max(1, funded);
+                      const locked = funded > 0;
+                      return (
+                        <div
+                          key={p.id}
+                          className={cn(
+                            "flex flex-col rounded-xl border p-2.5 transition-colors",
+                            selected
+                              ? "border-turf/60 bg-turf/5"
+                              : "border-line bg-surface hover:border-line-strong",
+                          )}
                         >
-                          {cat}
-                        </td>
-                      </tr>
-                      {products.map((p) => {
-                        const item = items.find(
-                          (it) => it.hart_product_id === p.id,
-                        );
-                        const selected = Boolean(item);
-                        const qty = item?.quantity_needed ?? 0;
-                        const funded = item?.quantity_funded ?? 0;
-                        const minQty = Math.max(1, funded);
-                        const locked = funded > 0;
-                        return (
-                          <tr
-                            key={p.id}
-                            className={cn(
-                              "border-t border-line transition-colors",
-                              selected
-                                ? "bg-turf/5"
-                                : "hover:bg-surface-sunk/40",
-                            )}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              p.image_url &&
+                              setZoom({ url: p.image_url, name: p.name })
+                            }
+                            disabled={!p.image_url}
+                            aria-label={
+                              p.image_url ? `Enlarge ${p.name}` : undefined
+                            }
+                            className="group relative mb-2 aspect-square w-full overflow-hidden rounded-lg border border-line bg-white"
                           >
-                            <td className="px-3 py-2">
-                              <div className="flex items-start gap-3">
-                                <div className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-lg border border-line bg-canvas">
-                                  {p.image_url ? (
-                                    <Image
-                                      src={p.image_url}
-                                      alt=""
-                                      width={48}
-                                      height={48}
-                                      className="h-full w-full object-contain"
-                                    />
-                                  ) : (
-                                    <ImageOff
-                                      className="h-4 w-4 text-ink-faint"
-                                      aria-hidden
-                                    />
-                                  )}
-                                </div>
-                                <div className="min-w-0">
-                                  <span className="font-medium text-ink">
-                                    {p.name}
-                                  </span>
-                                  {p.description && (
-                                    <p
-                                      title={p.description}
-                                      className="mt-0.5 line-clamp-2 cursor-help text-xs leading-relaxed text-ink-faint hover:line-clamp-none"
-                                    >
-                                      {boldIncludes(p.description)}
-                                    </p>
-                                  )}
-                                </div>
+                            {p.image_url ? (
+                              <Image
+                                src={p.image_url}
+                                alt={p.name}
+                                fill
+                                sizes="(max-width: 640px) 45vw, 200px"
+                                className="object-contain p-2 transition-transform group-hover:scale-105"
+                              />
+                            ) : (
+                              <div className="grid h-full w-full place-items-center">
+                                <ImageOff
+                                  className="h-6 w-6 text-ink-faint"
+                                  aria-hidden
+                                />
                               </div>
-                            </td>
-                            <td className="hidden px-3 py-2 font-mono text-xs text-ink-faint sm:table-cell">
-                              {p.hart_sku}
-                            </td>
-                            <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-ink">
-                              {p.unit_price != null
-                                ? moneyExact(p.unit_price)
-                                : "—"}
-                            </td>
-                            <td className="px-3 py-2">
-                              {selected ? (
-                                <div className="flex items-center justify-end gap-2">
-                                  <div className="inline-flex items-center rounded-full border border-turf/60 bg-turf/5">
-                                    <button
-                                      type="button"
-                                      aria-label={
-                                        !locked && qty <= minQty
-                                          ? "Remove item"
-                                          : "Decrease quantity"
-                                      }
-                                      onClick={() => stepQuantity(p, -1)}
-                                      disabled={locked && qty <= minQty}
-                                      title={
-                                        locked && qty <= minQty
-                                          ? `${funded} already funded`
-                                          : undefined
-                                      }
-                                      className="grid h-8 w-8 place-items-center rounded-full text-turf-dark hover:bg-turf/15 disabled:opacity-40"
-                                    >
-                                      {!locked && qty <= minQty ? (
-                                        <Trash2
-                                          className="h-3.5 w-3.5"
-                                          aria-hidden
-                                        />
-                                      ) : (
-                                        <Minus
-                                          className="h-3.5 w-3.5"
-                                          aria-hidden
-                                        />
-                                      )}
-                                    </button>
-                                    <span className="w-7 text-center text-sm font-bold tabular-nums text-turf-dark">
-                                      {qty}
-                                    </span>
-                                    <button
-                                      type="button"
-                                      aria-label="Increase quantity"
-                                      onClick={() => stepQuantity(p, 1)}
-                                      className="grid h-8 w-8 place-items-center rounded-full text-turf-dark hover:bg-turf/15"
-                                    >
-                                      <Plus className="h-3.5 w-3.5" aria-hidden />
-                                    </button>
-                                  </div>
-                                  {locked && (
-                                    <Lock
-                                      className="h-3.5 w-3.5 shrink-0 text-turf-dark"
-                                      aria-label={`${funded} funded`}
-                                    />
-                                  )}
-                                </div>
-                              ) : (
-                                <div className="flex justify-end">
+                            )}
+                          </button>
+                          <p className="line-clamp-2 text-sm font-medium leading-snug text-ink">
+                            {p.name}
+                          </p>
+                          <p className="mt-0.5 text-sm font-bold tabular-nums text-ink">
+                            {p.unit_price != null
+                              ? moneyExact(p.unit_price)
+                              : "—"}
+                          </p>
+                          {p.description && (
+                            <p
+                              title={p.description}
+                              className="mt-1 line-clamp-2 cursor-help text-xs leading-relaxed text-ink-faint hover:line-clamp-none"
+                            >
+                              {boldIncludes(p.description)}
+                            </p>
+                          )}
+                          <div className="mt-auto pt-2.5">
+                            {selected ? (
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="inline-flex items-center rounded-full border border-turf/60 bg-turf/5">
                                   <button
                                     type="button"
-                                    onClick={() => toggleProduct(p)}
-                                    aria-pressed={false}
-                                    className="inline-flex items-center gap-1 rounded-full border border-coral bg-coral/10 px-3 py-1.5 text-xs font-semibold text-coral-dark transition-colors hover:bg-coral/20"
+                                    aria-label={
+                                      !locked && qty <= minQty
+                                        ? "Remove item"
+                                        : "Decrease quantity"
+                                    }
+                                    onClick={() => stepQuantity(p, -1)}
+                                    disabled={locked && qty <= minQty}
+                                    title={
+                                      locked && qty <= minQty
+                                        ? `${funded} already funded`
+                                        : undefined
+                                    }
+                                    className="grid h-8 w-8 place-items-center rounded-full text-turf-dark hover:bg-turf/15 disabled:opacity-40"
+                                  >
+                                    {!locked && qty <= minQty ? (
+                                      <Trash2
+                                        className="h-3.5 w-3.5"
+                                        aria-hidden
+                                      />
+                                    ) : (
+                                      <Minus
+                                        className="h-3.5 w-3.5"
+                                        aria-hidden
+                                      />
+                                    )}
+                                  </button>
+                                  <span className="w-7 text-center text-sm font-bold tabular-nums text-turf-dark">
+                                    {qty}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    aria-label="Increase quantity"
+                                    onClick={() => stepQuantity(p, 1)}
+                                    className="grid h-8 w-8 place-items-center rounded-full text-turf-dark hover:bg-turf/15"
                                   >
                                     <Plus className="h-3.5 w-3.5" aria-hidden />
-                                    Add
                                   </button>
                                 </div>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </Fragment>
-                  ))}
-                </tbody>
-              </table>
+                                {locked && (
+                                  <Lock
+                                    className="h-3.5 w-3.5 shrink-0 text-turf-dark"
+                                    aria-label={`${funded} funded`}
+                                  />
+                                )}
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => toggleProduct(p)}
+                                className="inline-flex w-full items-center justify-center gap-1 rounded-full border border-coral bg-coral/10 px-3 py-1.5 text-xs font-semibold text-coral-dark transition-colors hover:bg-coral/20"
+                              >
+                                <Plus className="h-3.5 w-3.5" aria-hidden />
+                                Add
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>
+
+        {zoom && (
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={zoom.name}
+            onClick={() => setZoom(null)}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+          >
+            <div
+              className="relative max-w-lg rounded-xl bg-white p-3"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                type="button"
+                onClick={() => setZoom(null)}
+                aria-label="Close image"
+                className="absolute right-2 top-2 z-10 grid h-8 w-8 place-items-center rounded-full bg-black/40 text-white hover:bg-black/60"
+              >
+                <X className="h-4 w-4" aria-hidden />
+              </button>
+              <div className="relative aspect-square w-[80vw] max-w-md">
+                <Image
+                  src={zoom.url}
+                  alt={zoom.name}
+                  fill
+                  sizes="80vw"
+                  className="object-contain"
+                />
+              </div>
+              <p className="mt-2 text-center text-sm font-medium text-ink">
+                {zoom.name}
+              </p>
+            </div>
+          </div>
+        )}
         {items.length > 0 && (
           <p className="mt-3 text-sm font-medium text-ink-soft">
             {items.length} item{items.length === 1 ? "" : "s"} selected — set
