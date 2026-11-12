@@ -16,6 +16,7 @@ import { ProgressMeter } from "@/components/progress-meter";
 import { FundableItem, type FundMode } from "@/components/fundable-item";
 import { CampaignDonors } from "@/components/campaign-donors";
 import { CloseCampaignButton } from "@/components/close-campaign-button";
+import { FundAllButton } from "@/components/fund-all-button";
 import { getCampaign, getCampaignDonations } from "@/lib/data";
 import { getViewer } from "@/lib/auth";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
@@ -155,13 +156,22 @@ export default async function CampaignPage({ params }: Params) {
 
           {/* Items — the fundable "products" */}
           <section className="mt-10">
-            <div className="mb-4 flex items-baseline justify-between">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <h2 className="font-display text-xl font-bold text-ink">
                 What they need
               </h2>
-              <span className="text-sm text-ink-faint">
-                {campaign.items.length} items
-              </span>
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-ink-faint">
+                  {campaign.items.length} items
+                </span>
+                {!closed && fundMode !== "school" && (
+                  <FundAllButton
+                    items={campaign.items}
+                    campaignTitle={campaign.title}
+                    schoolName={campaign.school.name}
+                  />
+                )}
+              </div>
             </div>
             <ul className="space-y-4">
               {campaign.items.map((item) => (
