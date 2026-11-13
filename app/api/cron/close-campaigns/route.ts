@@ -14,8 +14,10 @@ export const dynamic = "force-dynamic";
  * to scheduled requests when that env var is set.
  */
 export async function GET(req: Request) {
+  // Fail closed: reject if the secret is unset OR the header doesn't match, so a
+  // missing CRON_SECRET can never leave this route open.
   const secret = process.env.CRON_SECRET;
-  if (secret && req.headers.get("authorization") !== `Bearer ${secret}`) {
+  if (!secret || req.headers.get("authorization") !== `Bearer ${secret}`) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   if (!RECONCILE_READY) {
